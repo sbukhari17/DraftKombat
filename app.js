@@ -415,7 +415,6 @@ function speakFatality() { speakAnnouncer('Fatality', 0.04, 0.48); }
 function speakVictory(name) { speakAnnouncer(`${name} wins. First overall pick.`, 0.18, 0.7); }
 function speakFight() { speakAnnouncer('Fight', 0.05, 0.55); }
 function speakFinishHim() { speakAnnouncer('Finish him', 0.05, 0.5); }
-function speakVersus(a, b) { speakAnnouncer(`${a} versus ${b}`, 0.12, 0.7); }
 
 /* ============================== Fighter visuals ========================== */
 const ROSTER = [
@@ -888,15 +887,15 @@ async function shakeScreen(amount) {
 
 async function flashOverlay(text, sub, color, holdMs, size = 46) {
   overlayText = { text, sub, color, alpha: 0, y: CH * 0.4, size };
-  await tween(overlayText, 'alpha', 0, 1, P(180));
+  await tween(overlayText, 'alpha', 0, 1, P(80));
   await wait(P(holdMs));
-  await tween(overlayText, 'alpha', 1, 0, P(260));
+  await tween(overlayText, 'alpha', 1, 0, P(90));
   overlayText = null;
 }
 
 async function exchangeBlows(champion, opponent, hitCount) {
   for (let i = 0; i < hitCount; i++) {
-    const attackerIsChampion = i % 2 === 0 || i === hitCount - 1;
+    const attackerIsChampion = i % 2 === 0;
     const attacker = attackerIsChampion ? champion : opponent;
     const defender = attackerIsChampion ? opponent : champion;
     const kind = i % 3 === 2 ? 'kick' : 'punch';
@@ -907,8 +906,8 @@ async function exchangeBlows(champion, opponent, hitCount) {
     attacker.poseT = 0;
     audio.playWhoosh();
     await Promise.all([
-      tween(attacker, 'x', home, home + dir * lunge, P(140)),
-      tween(attacker, 'poseT', 0, 1, P(220)),
+      tween(attacker, 'x', home, home + dir * lunge, P(80)),
+      tween(attacker, 'poseT', 0, 1, P(120)),
     ]);
 
     audio.playHit(kind);
@@ -925,16 +924,16 @@ async function exchangeBlows(champion, opponent, hitCount) {
     const defHome = defender.x;
     const knock = kind === 'kick' ? 26 : 16;
     await Promise.all([
-      tween(defender, 'x', defHome, defHome + (defender.flip ? knock : -knock), P(90)),
-      tween(defender, 'poseT', 0, 1, P(160)),
+      tween(defender, 'x', defHome, defHome + (defender.flip ? knock : -knock), P(50)),
+      tween(defender, 'poseT', 0, 1, P(90)),
     ]);
     await Promise.all([
-      tween(attacker, 'x', attacker.x, home, P(140)),
-      tween(defender, 'x', defender.x, defHome, P(140)),
+      tween(attacker, 'x', attacker.x, home, P(70)),
+      tween(defender, 'x', defender.x, defHome, P(70)),
     ]);
     attacker.pose = 'idle';
     defender.pose = 'idle';
-    await wait(P(90));
+    await wait(P(30));
   }
 }
 
@@ -956,45 +955,42 @@ async function runBout({ champion, opponent, pickNumber, isFirstBout, exchanges 
     champion.x = OFFSCREEN_LEFT;
     opponent.x = OFFSCREEN_RIGHT;
     await Promise.all([
-      tween(champion, 'x', OFFSCREEN_LEFT, CHAMPION_X, P(650)),
-      tween(opponent, 'x', OFFSCREEN_RIGHT, OPPONENT_X, P(650)),
+      tween(champion, 'x', OFFSCREEN_LEFT, CHAMPION_X, P(240)),
+      tween(opponent, 'x', OFFSCREEN_RIGHT, OPPONENT_X, P(240)),
     ]);
   } else {
     opponent.x = OFFSCREEN_RIGHT;
     audio.playWhoosh();
-    await tween(opponent, 'x', OFFSCREEN_RIGHT, OPPONENT_X, P(500));
+    await tween(opponent, 'x', OFFSCREEN_RIGHT, OPPONENT_X, P(180));
   }
 
   scene.roundLabel = 'ROUND';
   scene.leftName = champion.name;
   scene.rightName = opponent.name;
-  await tween(scene, 'introAlpha', 0, 1, 160);
-  speakVersus(champion.name, opponent.name);
-  await wait(1000);
-  await tween(scene, 'introAlpha', 1, 0, 120);
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  await tween(scene, 'introAlpha', 0, 1, 90);
+  await wait(420);
+  await tween(scene, 'introAlpha', 1, 0, 80);
 
   audio.playClip('fight', 1.2);
-  speakFight();
   scene.fightAlpha = 1;
   scene.fightScale = 2.5;
-  await tween(scene, 'fightScale', 2.5, 1, 220);
-  await wait(680);
-  await tween(scene, 'fightAlpha', 1, 0, 160);
+  await tween(scene, 'fightScale', 2.5, 1, 140);
+  await wait(220);
+  await tween(scene, 'fightAlpha', 1, 0, 80);
 
   await exchangeBlows(champion, opponent, exchanges);
 
-  await audio.duck(1400);
   audio.playClip('finish', 1.15);
   speakFinishHim();
-  await flashOverlay('FINISH HIM', opponent.name.toUpperCase(), '#ffd200', 900, 52);
+  await flashOverlay('FINISH HIM', opponent.name.toUpperCase(), '#ffd200', 280, 52);
 
-  // finishing kick — opponent always loses (order was decided at shuffle)
   const home = champion.x;
   champion.pose = 'kick';
   champion.poseT = 0;
   await Promise.all([
-    tween(champion, 'x', home, home + 54, P(140)),
-    tween(champion, 'poseT', 0, 1, P(220)),
+    tween(champion, 'x', home, home + 54, P(80)),
+    tween(champion, 'poseT', 0, 1, P(120)),
   ]);
   audio.playHit('kick');
   opponent.hp = 0;
@@ -1005,14 +1001,12 @@ async function runBout({ champion, opponent, pickNumber, isFirstBout, exchanges 
   audio.playFatalityStinger();
   speakFatality();
   particles.push(...makeBurst(opponent.x, opponent.y - 40, '#e31b23', 28, 280));
-  await tween(opponent, 'poseT', 0, 1, P(420));
-  await tween(opponent, 'alpha', 1, 0.18, P(360));
-  await tween(champion, 'x', champion.x, home, P(140));
+  await tween(opponent, 'poseT', 0, 1, P(220));
+  await tween(opponent, 'alpha', 1, 0.18, P(160));
+  await tween(champion, 'x', champion.x, home, P(70));
   champion.pose = 'idle';
 
-  await flashOverlay('FATALITY', `${opponent.name.toUpperCase()} — PICK #${pickNumber}`, '#e31b23', 1300, 48);
-
-  await wait(P(150));
+  await flashOverlay('FATALITY', `${opponent.name.toUpperCase()} — PICK #${pickNumber}`, '#e31b23', 420, 48);
 }
 
 async function runVictorySequence(champion) {
@@ -1026,27 +1020,10 @@ async function runVictorySequence(champion) {
   await flashOverlay('VICTORY!', `${champion.name.toUpperCase()} — 1ST OVERALL PICK`, '#ffb627', 2200, 44);
 }
 
-// Works out pacing so the whole thing lands roughly in a 2-3 minute
-// neighborhood regardless of how many teams are in the league: fewer
-// fights (small leagues) get slower, more dramatic exchanges; more fights
-// (big leagues) get a snappier highlight-reel tempo. This is inherently
-// approximate — a 4-team gauntlet and a 16-team gauntlet have a very
-// different number of discrete events to show.
-function computePacing(fightCount) {
-  const targetTotalMs = 170000; // ~2.83 min baseline, before pace scaling
-  const victoryOverheadMs = 3200;
-  let perFight = (targetTotalMs - victoryOverheadMs) / Math.max(1, fightCount);
-  perFight = clamp(perFight, 5500, 70000);
-
-  // Fewer total fights -> a few more exchanges per bout for variety.
-  const exchanges = clamp(Math.round(10 / Math.sqrt(fightCount)) + 2, 3, 9);
-
-  const overheadBaseMs = 4010; // non-hit choreography per bout, unscaled
-  const perHitBaseMs = 400;    // one punch/kick exchange, unscaled
-  const unscaledBout = overheadBaseMs + exchanges * perHitBaseMs;
-  const paceValue = clamp(perFight / unscaledBout, 0.55, 5.5);
-
-  return { exchanges, pace: paceValue };
+function computePacing(_fightCount) {
+  // At most 3 hits per fighter, whole bout ≤ 5s.
+  // Combat is C-O-C-O then the champion's finishing kick.
+  return { exchanges: 4, pace: 1 };
 }
 
 async function runFullSimulation() {

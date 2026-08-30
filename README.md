@@ -12,10 +12,12 @@ Live: `https://sbukhari17.github.io/DraftKombat/`
 1. You enter a league name and 4–16 team names.
 2. The draft order is shuffled randomly, client-side, the moment you hit
    **Start Draft Kombat** — and never shown to you directly.
-3. A ~2–3 minute arcade fight plays on a `<canvas>`. A running champion
-   holds the pit. Challengers walk in one by one.
-4. Each round opens with a **one-second intro** (`NAME vs NAME`) then a
+3. An arcade fight plays on a `<canvas>`. A running champion holds the
+   pit. Challengers walk in one by one. Each bout is about 5 seconds —
+   at most 3 hits per fighter.
+4. Each round opens with a short visual intro (`NAME vs NAME`) then a
    big **FIGHT** slam. Combat is punches and kicks only — no guns.
+   Team names are not spoken (that slowed the start of the round).
 5. Sixteen original kombatants (idle / punch / kick) are reused across
    every draft, plus an original industrial theme and announcer clips
    (Fight, Finish him, Fatality, Wins).
@@ -43,8 +45,8 @@ Static site — no build step.
   captured in the downloaded video. Recordings still get the on-screen
   FIGHT / FINISH HIM / FATALITY text plus original announcer clips and
   the impact stinger (those *are* in the Web Audio graph).
-- **Runtime.** Small leagues get slower, more dramatic exchanges; big
-  leagues get a snappier highlight-reel pace. Roughly 2–3 minutes.
+- **Runtime.** Each bout is capped at about 5 seconds (intro, a few
+  punches and kicks, then FINISH HIM / FATALITY).
 - **Fighters** are original designs — not likenesses of any existing
   fighting-game characters.
 - Audio unlocks on **Start Draft Kombat**.
