@@ -470,7 +470,7 @@ function buildFighter(name, index, total) {
     colorGlow: `hsl(${hue}, 95%, 70%)`,
     flip: false,
     x: 0, y: 0, scale: 1, rot: 0,
-    hp: 1,
+    hp: 1, displayHp: 1, chipHp: 1,
     hitFlash: 0,
     pose: 'idle',
     poseT: 0,
@@ -723,15 +723,18 @@ function drawHealthBar(f, x, alignRight) {
   const w = 260, h = 18;
   ctx.save();
   ctx.translate(x, 34);
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
   ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = '#3a3555';
-  ctx.strokeRect(0, 0, w, h);
-  const hpW = Math.max(0, w * f.hp);
+  const chipW = Math.max(0, w * (f.chipHp ?? f.hp));
+  const hpW = Math.max(0, w * (f.displayHp ?? f.hp));
+  const chipX = alignRight ? w - chipW : 0;
   const barX = alignRight ? w - hpW : 0;
-  const hpColor = f.hp > 0.5 ? '#2ee6a8' : (f.hp > 0.2 ? '#ffb627' : '#e31b23');
-  ctx.fillStyle = hpColor;
+  ctx.fillStyle = '#ffd200';
+  ctx.fillRect(chipX, 2, chipW, h - 4);
+  ctx.fillStyle = (f.displayHp ?? f.hp) > 0.32 ? '#e31b23' : '#ff4d3a';
   ctx.fillRect(barX, 2, hpW, h - 4);
+  ctx.strokeStyle = '#ffd200';
+  ctx.strokeRect(0, 0, w, h);
   ctx.fillStyle = '#f5f0e8';
   ctx.font = '13px Orbitron, sans-serif';
   ctx.textAlign = alignRight ? 'right' : 'left';
@@ -801,6 +804,10 @@ function renderFrame(now) {
     fighters.sort((a, b) => a.y - b.y);
     fighters.forEach(f => {
       if (f.hitFlash > 0) f.hitFlash = Math.max(0, f.hitFlash - dt * 6);
+      if (f.displayHp > f.hp) f.displayHp = Math.max(f.hp, f.displayHp - dt * 1.8);
+      else f.displayHp = f.hp;
+      if (f.chipHp > f.displayHp) f.chipHp = Math.max(f.displayHp, f.chipHp - dt * 0.55);
+      else f.chipHp = f.displayHp;
       drawFighter(ctx, f);
     });
     if (scene.introAlpha > 0.01) {
@@ -908,9 +915,9 @@ async function exchangeBlows(champion, opponent, hitCount) {
     defender.hitFlash = 1;
     defender.pose = 'hurt';
     defender.poseT = 0;
-    const dmg = rand(0.08, 0.16);
-    if (defender === opponent) opponent.hp = Math.max(0.08, opponent.hp - dmg * 1.35);
-    else champion.hp = Math.max(0.35, champion.hp - dmg * 0.5);
+    const dmg = attackerIsChampion ? rand(0.36, 0.46) : rand(0.14, 0.2);
+    const floor = attackerIsChampion ? 0.1 : 0.48;
+    defender.hp = Math.max(floor, defender.hp - dmg);
     shakeScreen(kind === 'kick' ? 14 : 9);
     const burstColor = attackerIsChampion ? champion.colorGlow : opponent.colorGlow;
     particles.push(...makeBurst(defender.x, defender.y - (kind === 'kick' ? 90 : 140), burstColor, kind === 'kick' ? 14 : 10, 180));
@@ -936,10 +943,13 @@ async function exchangeBlows(champion, opponent, hitCount) {
 async function runBout({ champion, opponent, pickNumber, isFirstBout, exchanges }) {
   scene = { champion, opponent, vsAlpha: 0, introAlpha: 0, fightAlpha: 0, fightScale: 1, leftName: champion.name, rightName: opponent.name, roundLabel: '' };
   champion.x = CHAMPION_X; champion.y = GROUND_Y; champion.flip = false;
-  champion.hp = isFirstBout ? 1 : Math.min(1, champion.hp + 0.35); // patch up a little between rounds
+  champion.hp = isFirstBout ? 1 : Math.min(1, champion.hp + 0.35);
+  champion.displayHp = champion.hp;
+  champion.chipHp = champion.hp;
   champion.pose = 'idle'; champion.alpha = 1; champion.scale = 1; champion.rot = 0;
 
   opponent.y = GROUND_Y; opponent.flip = true; opponent.hp = 1;
+  opponent.displayHp = 1; opponent.chipHp = 1;
   opponent.pose = 'idle'; opponent.alpha = 1; opponent.scale = 1; opponent.rot = 0;
 
   if (isFirstBout) {
@@ -988,6 +998,7 @@ async function runBout({ champion, opponent, pickNumber, isFirstBout, exchanges 
   ]);
   audio.playHit('kick');
   opponent.hp = 0;
+  opponent.displayHp = 0;
   opponent.pose = 'ko';
   opponent.poseT = 0;
   screenShake = 20;
@@ -1007,7 +1018,7 @@ async function runBout({ champion, opponent, pickNumber, isFirstBout, exchanges 
 async function runVictorySequence(champion) {
   scene = { champion, opponent: null, vsAlpha: 0 };
   champion.x = CW / 2; champion.y = GROUND_Y; champion.flip = false;
-  champion.pose = 'victory'; champion.hp = 1; champion.alpha = 1;
+  champion.pose = 'victory'; champion.hp = 1; champion.displayHp = 1; champion.chipHp = 1; champion.alpha = 1;
   audio.playVictoryFanfare();
   particles.push(...makeBurst(CW * 0.3, CH * 0.5, '#ffb627', 30, 300));
   particles.push(...makeBurst(CW * 0.7, CH * 0.5, '#00f0ff', 30, 300));
