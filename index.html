@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Draft Kombat — Fantasy Draft Order Generator</title>
+<meta name="description" content="Turn your fantasy league's draft order into an arcade fighting tournament. Enter your teams, watch them battle, and let the last fighter standing win the first pick.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚔️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="crt-overlay" aria-hidden="true"></div>
+
+<header class="site-header">
+  <h1 class="logo">DRAFT <span>KOMBAT</span></h1>
+  <p class="tagline">Your fantasy draft order, settled in the arena.</p>
+</header>
+
+<main id="app">
+
+  <!-- ===================== SETUP SCREEN ===================== -->
+  <section id="screen-setup" class="screen active" aria-labelledby="setup-heading">
+    <div class="panel">
+      <h2 id="setup-heading">Enter the league</h2>
+      <p class="panel-sub">Add every team. When you start the fight, the draft order is locked in secretly and revealed one elimination at a time — worst pick first.</p>
+
+      <div class="field">
+        <label for="league-name">League name</label>
+        <input type="text" id="league-name" maxlength="40" placeholder="e.g. The Gridiron Gauntlet" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <div class="teams-label-row">
+          <label>Teams <span id="team-count-label">(4–16)</span></label>
+        </div>
+        <ol id="team-list" class="team-list"></ol>
+        <button type="button" id="add-team-btn" class="btn btn-ghost">+ Add team</button>
+      </div>
+
+      <p id="setup-error" class="error-text" role="alert" hidden></p>
+
+      <button type="button" id="start-btn" class="btn btn-primary btn-large">Start Draft Kombat</button>
+
+      <p class="fine-print">Everything runs in your browser. No team names, results, or draft orders are ever sent anywhere or saved after you close this page.</p>
+    </div>
+  </section>
+
+  <!-- ===================== SIMULATION SCREEN ===================== -->
+  <section id="screen-sim" class="screen" aria-labelledby="sim-heading">
+    <h2 id="sim-heading" class="sr-only">Draft Kombat tournament in progress</h2>
+    <div class="stage-wrap">
+      <canvas id="fight-canvas" width="1280" height="720"></canvas>
+      <div class="sim-controls">
+        <button type="button" id="mute-btn" class="btn btn-icon" aria-pressed="false" title="Mute">🔊</button>
+        <button type="button" id="skip-btn" class="btn btn-ghost" title="Fast-forward to the results">Fast-forward ⏭</button>
+      </div>
+    </div>
+    <p class="sim-hint">First eliminated gets the last pick. Last fighter standing gets the 1st overall pick.</p>
+  </section>
+
+  <!-- ===================== RESULTS SCREEN ===================== -->
+  <section id="screen-results" class="screen" aria-labelledby="results-heading">
+    <div class="panel results-panel">
+      <h2 id="results-heading">Final draft order</h2>
+      <p class="panel-sub" id="results-league-sub"></p>
+
+      <ol id="results-list" class="results-list"></ol>
+
+      <div class="results-actions">
+        <button type="button" id="replay-btn" class="btn btn-primary">Replay this simulation</button>
+        <button type="button" id="download-video-btn" class="btn btn-secondary">Download video</button>
+        <button type="button" id="download-png-btn" class="btn btn-secondary">Download order (PNG)</button>
+        <button type="button" id="new-draft-btn" class="btn btn-ghost">Start a new draft</button>
+      </div>
+      <p id="video-note" class="fine-print"></p>
+    </div>
+  </section>
+
+</main>
+
+<canvas id="export-canvas" width="1280" height="720" hidden></canvas>
+
+<footer class="site-footer">
+  <p>Draft Kombat runs entirely client-side. No fatalities were server-recorded in the making of this draft.</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
