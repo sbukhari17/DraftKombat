@@ -4,10 +4,9 @@
    DRAFT KOMBAT
    A client-side fantasy draft order generator staged as an arcade fight.
 
-   Everything here — music, hit sounds, and the fighters themselves — is
-   generated in-browser (Web Audio oscillators/noise + canvas shapes).
-   Nothing is fetched from a server and nothing is persisted: nix the tab
-   and the draft order is gone, exactly like requirement #9 wants.
+   Arcade gauntlet: original fighter sprites, punch/kick combat, MK-style
+   music and announcer clips. Draft order is shuffled client-side and
+   revealed one fatality at a time. Nothing is persisted.
    ========================================================================= */
 
 /* ------------------------------- Utilities ------------------------------ */
@@ -71,9 +70,8 @@ function tween(obj, prop, from, to, ms, easing = easeOutCubic, onUpdate = null) 
 }
 
 /* ============================== Audio Engine ============================ */
-/* Everything here is synthesized. No external audio files, no copyrighted
-   music or voice clips — just oscillators and noise buffers, so the app is
-   self-contained and safe to host as a static site. */
+/* Theme + announcer clips are original in-repo audio. Hit SFX and the
+   fallback music loop are still synthesized so the page works offline. */
 
 class AudioEngine {
   constructor() {
@@ -86,7 +84,10 @@ class AudioEngine {
     this.step = 0;
     this.nextStepTime = 0;
     this.muted = false;
-    this.bpm = 150;
+    this.bpm = 138;
+    this.theme = null;
+    this.themeSource = null;
+    this.clips = {};
   }
 
   ensureStarted() {
@@ -104,6 +105,37 @@ class AudioEngine {
     this.master.connect(this.ctx.destination);
 
     this._noiseBuffer = this._makeNoiseBuffer();
+  }
+
+  async preload() {
+    this.ensureStarted();
+    const decode = async (url) => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        return await this.ctx.decodeAudioData((await res.arrayBuffer()).slice(0));
+      } catch (e) { return null; }
+    };
+    this.theme = await decode('audio/theme.mp3');
+    this.clips = {
+      fight: await decode('audio/fight.mp3'),
+      fatality: await decode('audio/fatality.mp3'),
+      finish: await decode('audio/finish-him.mp3'),
+      wins: await decode('audio/wins.mp3'),
+      outstanding: await decode('audio/outstanding.mp3'),
+    };
+  }
+
+  playClip(name, gain = 1) {
+    if (!this.ctx || !this.sfxGain) return;
+    const buf = this.clips[name];
+    if (!buf) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const g = this.ctx.createGain();
+    g.gain.value = gain;
+    src.connect(g).connect(this.sfxGain);
+    src.start();
   }
 
   // Route the master bus to an extra destination (used to feed MediaRecorder).
@@ -140,13 +172,27 @@ class AudioEngine {
   /* ---- Background arcade fight loop: a small 16-step synth sequencer ---- */
   startMusic() {
     this.ensureStarted();
-    if (this.musicTimer) return;
+    this.stopMusic();
+    if (this.theme) {
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.theme;
+      src.loop = true;
+      src.connect(this.musicGain);
+      src.start();
+      this.themeSource = src;
+      return;
+    }
     this.step = 0;
     this.nextStepTime = this.ctx.currentTime + 0.05;
     this.musicTimer = setInterval(() => this._scheduler(), 25);
   }
 
   stopMusic() {
+    if (this.themeSource) {
+      try { this.themeSource.stop(); } catch (e) {}
+      this.themeSource.disconnect();
+      this.themeSource = null;
+    }
     if (this.musicTimer) {
       clearInterval(this.musicTimer);
       this.musicTimer = null;
@@ -303,6 +349,7 @@ class AudioEngine {
     src.connect(lp).connect(ng).connect(this.sfxGain);
     src.start(t);
     src.stop(t + 0.95);
+    this.playClip('fatality', 1.15);
   }
 
   playVictoryFanfare() {
@@ -321,6 +368,8 @@ class AudioEngine {
       osc.start(t);
       osc.stop(t + 0.55);
     });
+    this.playClip('outstanding', 1);
+    this.playClip('wins', 1);
   }
 
   // Briefly lower the music so a callout reads clearly, then restore it.
@@ -349,186 +398,125 @@ if ('speechSynthesis' in window) {
   loadVoices();
   window.speechSynthesis.onvoiceschanged = loadVoices;
 }
-function speakFatality() {
+function speakAnnouncer(text, pitch = 0.08, rate = 0.55) {
   if (!('speechSynthesis' in window) || appState.muted) return;
   try {
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance('FATALITY');
-    u.pitch = 0.15;
-    u.rate = 0.7;
+    const u = new SpeechSynthesisUtterance(text);
+    u.pitch = pitch;
+    u.rate = rate;
     u.volume = 1;
-    const deep = cachedVoices.find(v => /david|mark|daniel|male|fred/i.test(v.name));
+    const deep = cachedVoices.find(v => /david|mark|daniel|male|fred|baritone/i.test(v.name));
     if (deep) u.voice = deep;
-    window.speechSynthesis.speak(u);
-  } catch (e) { /* speech synthesis is best-effort */ }
-}
-function speakVictory(name) {
-  if (!('speechSynthesis' in window) || appState.muted) return;
-  try {
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(`${name} wins. First pick.`);
-    u.pitch = 0.7;
-    u.rate = 0.95;
     window.speechSynthesis.speak(u);
   } catch (e) { /* best-effort */ }
 }
+function speakFatality() { speakAnnouncer('Fatality', 0.04, 0.48); }
+function speakVictory(name) { speakAnnouncer(`${name} wins. First overall pick.`, 0.18, 0.7); }
+function speakFight() { speakAnnouncer('Fight', 0.05, 0.55); }
+function speakFinishHim() { speakAnnouncer('Finish him', 0.05, 0.5); }
+function speakVersus(a, b) { speakAnnouncer(`${a} versus ${b}`, 0.12, 0.7); }
 
 /* ============================== Fighter visuals ========================== */
+const ROSTER = [
+  { title: 'Ember Wraith' }, { title: 'Rime Specter' }, { title: 'Ironpalm' },
+  { title: 'Scalebite' }, { title: 'Nightcoil' }, { title: 'Crimson Oracle' },
+  { title: 'Silkfang' }, { title: 'Chromejaw' }, { title: 'Stormcall' },
+  { title: 'Razorace' }, { title: 'Bonebreaker' }, { title: 'Glacierine' },
+  { title: 'Ashwraith' }, { title: 'Scarletmask' }, { title: 'Goldfist' },
+  { title: 'Thornkite' },
+];
 
-const ARCHETYPES = ['Brawler', 'Ninja', 'Warrior', 'Mage', 'Gunner', 'Monk',
-  'Berserker', 'Ranger', 'Knight', 'Rogue', 'Titan', 'Phantom'];
+const assets = { fighters: [], arena: null, fx: {}, ready: false };
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Failed to load ' + src));
+    img.src = src;
+  });
+}
+
+async function loadAssets() {
+  if (assets.ready) return;
+  assets.fighters = await Promise.all(ROSTER.map(async (_, i) => {
+    const n = String(i).padStart(2, '0');
+    return {
+      idle: await loadImage(`fighters/${n}-idle.png`),
+      punch: await loadImage(`fighters/${n}-punch.png`),
+      kick: await loadImage(`fighters/${n}-kick.png`),
+    };
+  }));
+  assets.arena = await loadImage('arena.jpg');
+  assets.fx = {
+    spark: await loadImage('fx/spark.png'),
+    shock: await loadImage('fx/shock.png'),
+    burst: await loadImage('fx/burst.png'),
+  };
+  assets.ready = true;
+}
 
 function buildFighter(name, index, total) {
   const hue = Math.round((360 / total) * index) % 360;
+  const model = ROSTER[index % ROSTER.length];
   return {
     name,
     id: index,
-    archetype: ARCHETYPES[index % ARCHETYPES.length],
+    modelId: index % ROSTER.length,
+    modelTitle: model.title,
     colorPrimary: `hsl(${hue}, 78%, 58%)`,
     colorDark: `hsl(${hue}, 70%, 32%)`,
     colorGlow: `hsl(${hue}, 95%, 70%)`,
-    flip: false, // set true when facing left
-    // live animation state, mutated during fights
+    flip: false,
     x: 0, y: 0, scale: 1, rot: 0,
-    hp: 1, // 0..1
-    hitFlash: 0, // 0..1 decays each frame
-    pose: 'idle', // idle | approach | punch | kick | hurt | ko | victory
+    hp: 1,
+    hitFlash: 0,
+    pose: 'idle',
     poseT: 0,
     alpha: 1,
     shakeX: 0,
   };
 }
 
-// Draws one fighter as a simple original arcade silhouette (no likeness to
-// any existing game character) at (f.x, f.y) with the current pose baked
-// into limb offsets. Facing right by default; f.flip mirrors it.
+const DRAW_H = 318;
+
 function drawFighter(ctx, f) {
+  const sprites = assets.fighters[f.modelId];
+  if (!sprites) return;
+  let img = sprites.idle;
+  if (f.pose === 'punch') img = sprites.punch;
+  else if (f.pose === 'kick') img = sprites.kick;
+
+  const now = performance.now();
+  const bob = f.pose === 'idle' ? Math.sin(now / 260 + f.id) * 4
+    : f.pose === 'victory' ? Math.sin(now / 140) * 6 : 0;
+  const hurtLean = f.pose === 'hurt' ? (1 - f.poseT) * -12 : 0;
+  const koDrop = f.pose === 'ko' ? f.poseT * 48 : 0;
+  const koRot = f.pose === 'ko' ? f.poseT * (f.flip ? 1.05 : -1.05) : 0;
+  const punchBias = (f.pose === 'punch' || f.pose === 'kick') ? easeOutCubic(f.poseT) * 10 : 0;
+
+  const aspect = img.width / img.height;
+  const dh = DRAW_H * f.scale;
+  const dw = dh * aspect;
+
   ctx.save();
-  ctx.translate(f.x + f.shakeX, f.y);
-  ctx.scale((f.flip ? -1 : 1) * f.scale, f.scale);
-  ctx.rotate(f.rot);
   ctx.globalAlpha = f.alpha;
+  ctx.translate(f.x + f.shakeX + hurtLean, f.y + bob + koDrop);
+  ctx.scale(f.flip ? -1 : 1, 1);
+  ctx.rotate(f.rot + koRot);
 
-  const t = f.poseT;
-  let leanX = 0, armSwing = 0, legSpread = 10, crouch = 0, headBob = 0;
-
-  if (f.pose === 'approach') { leanX = 6; legSpread = 18; }
-  if (f.pose === 'punch') { armSwing = easeOutCubic(t) * 34; leanX = 10; }
-  if (f.pose === 'kick') { legSpread = 16 + easeOutCubic(t) * 28; leanX = -6; crouch = 4; }
-  if (f.pose === 'hurt') { leanX = -14 * (1 - t); headBob = 6 * Math.sin(t * 20); }
-  if (f.pose === 'ko') { crouch = 30 * t; leanX = -20 * t; }
-  if (f.pose === 'victory') { headBob = Math.sin(performance.now() / 140) * 4; armSwing = 20; }
-  if (f.pose === 'idle') { headBob = Math.sin(performance.now() / 260 + f.id) * 3; }
-
-  const glow = f.hitFlash > 0;
-
-  // ground shadow
-  ctx.save();
-  ctx.globalAlpha *= 0.35;
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
   ctx.beginPath();
-  ctx.ellipse(0, 96, 34, 9, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-
-  ctx.translate(0, crouch);
-
-  // back leg
-  ctx.strokeStyle = f.colorDark;
-  ctx.lineWidth = 12;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(-4, 24);
-  ctx.lineTo(-4 - legSpread * 0.6, 90 - crouch * 0.4);
-  ctx.stroke();
-
-  // front leg
-  ctx.beginPath();
-  ctx.moveTo(4, 24);
-  ctx.lineTo(4 + legSpread, 90 - crouch * 0.4);
-  ctx.stroke();
-
-  // torso
-  ctx.fillStyle = glow ? '#fff' : f.colorPrimary;
-  ctx.beginPath();
-  ctx.moveTo(-16 + leanX * 0.2, 24);
-  ctx.quadraticCurveTo(0 + leanX, -30, 16 + leanX * 0.2, 24);
-  ctx.closePath();
+  ctx.ellipse(0, 10, dw * 0.22, 11, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // back arm
-  ctx.strokeStyle = f.colorDark;
-  ctx.lineWidth = 10;
-  ctx.beginPath();
-  ctx.moveTo(-10 + leanX * 0.2, -10);
-  ctx.lineTo(-26 + leanX * 0.2 - armSwing * 0.3, 6);
-  ctx.stroke();
-
-  // front arm (this is the one that "hits")
-  ctx.strokeStyle = glow ? '#fff' : f.colorPrimary;
-  ctx.beginPath();
-  ctx.moveTo(10 + leanX * 0.2, -10);
-  ctx.lineTo(10 + leanX * 0.2 + armSwing, -10 + (f.pose === 'punch' ? 0 : 8));
-  ctx.stroke();
-
-  // head
-  ctx.translate(leanX * 0.35, -42 + headBob);
-  ctx.fillStyle = glow ? '#fff' : f.colorPrimary;
-  ctx.beginPath();
-  ctx.arc(0, 0, 13, 0, Math.PI * 2);
-  ctx.fill();
-
-  drawArchetypeAccessory(ctx, f);
-
-  ctx.restore();
-}
-
-// A handful of simple shape overlays so each archetype reads distinctly at
-// a glance, without borrowing any real character's design.
-function drawArchetypeAccessory(ctx, f) {
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.strokeStyle = f.colorDark;
-  ctx.lineWidth = 3;
-  switch (f.archetype) {
-    case 'Ninja':
-      ctx.fillRect(-14, -3, 28, 6); // mask band
-      break;
-    case 'Warrior':
-    case 'Knight':
-      ctx.beginPath(); ctx.arc(0, -2, 15, Math.PI, Math.PI * 2); ctx.fill(); // helm
-      break;
-    case 'Mage':
-      ctx.beginPath();
-      ctx.moveTo(-14, -6); ctx.lineTo(0, -30); ctx.lineTo(14, -6);
-      ctx.closePath(); ctx.fill(); // hood point
-      break;
-    case 'Gunner':
-      ctx.fillRect(6, -16, 14, 6); // visor bar
-      break;
-    case 'Monk':
-      ctx.beginPath(); ctx.arc(0, 4, 16, 0, Math.PI); ctx.fill(); // collar
-      break;
-    case 'Berserker':
-      ctx.beginPath(); ctx.moveTo(-14, 4); ctx.lineTo(-22, -10); ctx.lineTo(-8, 0); ctx.fill(); // shoulder fur
-      break;
-    case 'Ranger':
-      ctx.beginPath(); ctx.ellipse(0, -8, 15, 8, 0, Math.PI, Math.PI * 2); ctx.fill(); // hood
-      break;
-    case 'Rogue':
-      ctx.fillRect(-4, -18, 8, 8); // eye band
-      break;
-    case 'Titan':
-      ctx.beginPath(); ctx.arc(0, 6, 19, 0, Math.PI * 2); ctx.stroke(); // heavy collar ring
-      break;
-    case 'Phantom':
-      ctx.globalAlpha = 0.5;
-      ctx.beginPath(); ctx.arc(0, 0, 17, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
-      break;
-    default: // Brawler
-      ctx.fillRect(-18, 6, 10, 5);
-      ctx.fillRect(8, 6, 10, 5); // wraps on the arms area
+  if (f.hitFlash > 0.05) {
+    ctx.filter = `brightness(${1.4 + f.hitFlash * 1.6}) saturate(${1 - f.hitFlash * 0.7})`;
   }
+  ctx.drawImage(img, -dw / 2 + punchBias, -dh + 12, dw, dh);
+  ctx.filter = 'none';
+  ctx.restore();
 }
 
 /* ============================== Particles ================================ */
@@ -668,6 +656,12 @@ startBtn.addEventListener('click', () => {
 
 resetSetupForm();
 
+startBtn.disabled = true;
+startBtn.textContent = 'Loading arena…';
+loadAssets()
+  .then(() => { startBtn.disabled = false; startBtn.textContent = 'Start Draft Kombat'; })
+  .catch(() => { startBtn.disabled = false; startBtn.textContent = 'Start Draft Kombat'; });
+
 /* ================================ Mute toggle ============================= */
 
 const muteBtn = document.getElementById('mute-btn');
@@ -707,45 +701,22 @@ function resetSceneVisuals() {
 }
 
 function drawBackground(t) {
-  // arena gradient
-  const g = ctx.createLinearGradient(0, 0, 0, CH);
-  g.addColorStop(0, '#1a1530');
-  g.addColorStop(0.55, '#0f0c1e');
-  g.addColorStop(1, '#050409');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, CW, CH);
-
-  // distant skyline silhouettes, slow parallax
-  ctx.fillStyle = 'rgba(30,20,50,0.8)';
-  const offset = (t * 0.01) % 120;
-  for (let i = -1; i < 12; i++) {
-    const bx = i * 120 - offset;
-    const bh = 90 + ((i * 47) % 140);
-    ctx.fillRect(bx, CH * 0.62 - bh, 70, bh);
+  if (assets.arena) {
+    ctx.drawImage(assets.arena, 0, 0, CW, CH);
+    const g = ctx.createLinearGradient(0, 0, 0, CH);
+    g.addColorStop(0, 'rgba(0,0,0,0.35)');
+    g.addColorStop(0.45, 'rgba(0,0,0,0.12)');
+    g.addColorStop(1, 'rgba(0,0,0,0.55)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, CW, CH);
+  } else {
+    ctx.fillStyle = '#07070a';
+    ctx.fillRect(0, 0, CW, CH);
   }
-
-  // neon horizon line
-  const grad2 = ctx.createLinearGradient(0, CH * 0.62 - 4, 0, CH * 0.62 + 4);
-  grad2.addColorStop(0, 'rgba(0,240,255,0)');
-  grad2.addColorStop(0.5, 'rgba(0,240,255,0.55)');
-  grad2.addColorStop(1, 'rgba(0,240,255,0)');
-  ctx.fillStyle = grad2;
-  ctx.fillRect(0, CH * 0.62 - 4, CW, 8);
-
-  // floor
-  const floorG = ctx.createLinearGradient(0, CH * 0.62, 0, CH);
-  floorG.addColorStop(0, '#171226');
-  floorG.addColorStop(1, '#08060d');
-  ctx.fillStyle = floorG;
-  ctx.fillRect(0, CH * 0.62, CW, CH * 0.38);
-
-  // floor grid lines for depth
-  ctx.strokeStyle = 'rgba(255,46,99,0.18)';
-  ctx.lineWidth = 1;
-  for (let i = 1; i < 10; i++) {
-    const y = CH * 0.62 + i * ((CH * 0.38) / 10);
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CW, y); ctx.stroke();
-  }
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath();
+  ctx.ellipse(CW / 2, GROUND_Y + 18, 340, 22, 0, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function drawHealthBar(f, x, alignRight) {
@@ -832,15 +803,41 @@ function renderFrame(now) {
       if (f.hitFlash > 0) f.hitFlash = Math.max(0, f.hitFlash - dt * 6);
       drawFighter(ctx, f);
     });
-    if (scene.vsAlpha > 0) {
+    if (scene.introAlpha > 0.01) {
       ctx.save();
-      ctx.globalAlpha = scene.vsAlpha;
-      ctx.fillStyle = '#fff';
-      ctx.font = '48px "Press Start 2P", monospace';
+      ctx.globalAlpha = scene.introAlpha * 0.72;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, CH * 0.28, CW, CH * 0.28);
+      ctx.globalAlpha = scene.introAlpha;
       ctx.textAlign = 'center';
-      ctx.shadowColor = '#ff2e63';
-      ctx.shadowBlur = 20;
-      ctx.fillText('VS', CW / 2, CH * 0.42);
+      ctx.fillStyle = '#ffd200';
+      ctx.font = '700 18px "Barlow Condensed", Orbitron, sans-serif';
+      ctx.fillText(scene.roundLabel || '', CW / 2, CH * 0.35);
+      ctx.fillStyle = '#f4ead5';
+      ctx.font = '44px "Black Ops One", "Press Start 2P", Impact, sans-serif';
+      ctx.fillText((scene.leftName || '').toUpperCase(), CW * 0.28, CH * 0.46);
+      ctx.fillStyle = '#e31b23';
+      ctx.font = '36px "Black Ops One", "Press Start 2P", Impact, sans-serif';
+      ctx.fillText('VS', CW / 2, CH * 0.46);
+      ctx.fillStyle = '#f4ead5';
+      ctx.font = '44px "Black Ops One", "Press Start 2P", Impact, sans-serif';
+      ctx.fillText((scene.rightName || '').toUpperCase(), CW * 0.72, CH * 0.46);
+      ctx.restore();
+    }
+    if (scene.fightAlpha > 0.01) {
+      ctx.save();
+      ctx.translate(CW / 2, CH * 0.46);
+      ctx.scale(scene.fightScale || 1, scene.fightScale || 1);
+      ctx.globalAlpha = scene.fightAlpha;
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#e31b23';
+      ctx.shadowBlur = 28;
+      ctx.fillStyle = '#e31b23';
+      ctx.strokeStyle = '#ffd200';
+      ctx.lineWidth = 8;
+      ctx.font = '92px "Black Ops One", "Press Start 2P", Impact, sans-serif';
+      ctx.strokeText('FIGHT', 0, 0);
+      ctx.fillText('FIGHT', 0, 0);
       ctx.restore();
     }
   }
@@ -864,7 +861,7 @@ function stopRenderLoop() {
 
 /* ============================== Fight choreography ========================= */
 
-const GROUND_Y = CH * 0.72;
+const GROUND_Y = CH * 0.78;
 const CHAMPION_X = CW * 0.32;
 const OPPONENT_X = CW * 0.68;
 const OFFSCREEN_LEFT = -120;
@@ -895,39 +892,49 @@ async function exchangeBlows(champion, opponent, hitCount) {
     const attackerIsChampion = i % 2 === 0 || i === hitCount - 1;
     const attacker = attackerIsChampion ? champion : opponent;
     const defender = attackerIsChampion ? opponent : champion;
-    const kind = Math.random() < 0.5 ? 'punch' : 'kick';
-
+    const kind = i % 3 === 2 ? 'kick' : 'punch';
+    const dir = attacker.flip ? -1 : 1;
+    const home = attacker.x;
+    const lunge = kind === 'kick' ? 54 : 42;
     attacker.pose = kind;
     attacker.poseT = 0;
-    await tween(attacker, 'poseT', 0, 1, P(260));
+    audio.playWhoosh();
+    await Promise.all([
+      tween(attacker, 'x', home, home + dir * lunge, P(140)),
+      tween(attacker, 'poseT', 0, 1, P(220)),
+    ]);
 
-    // impact
     audio.playHit(kind);
     defender.hitFlash = 1;
     defender.pose = 'hurt';
     defender.poseT = 0;
     const dmg = rand(0.08, 0.16);
-    // the loser (opponent) always ends up depleted; champion dips a little
-    // for drama but never actually loses, matching the pre-rolled order.
-    if (defender === opponent) {
-      opponent.hp = Math.max(0.05, opponent.hp - dmg * 1.4);
-    } else {
-      champion.hp = Math.max(0.35, champion.hp - dmg * 0.5);
-    }
-    shakeScreen(10);
+    if (defender === opponent) opponent.hp = Math.max(0.08, opponent.hp - dmg * 1.35);
+    else champion.hp = Math.max(0.35, champion.hp - dmg * 0.5);
+    shakeScreen(kind === 'kick' ? 14 : 9);
     const burstColor = attackerIsChampion ? champion.colorGlow : opponent.colorGlow;
-    particles.push(...makeBurst(defender.x, defender.y - 20, burstColor, 10, 160));
+    particles.push(...makeBurst(defender.x, defender.y - (kind === 'kick' ? 90 : 140), burstColor, kind === 'kick' ? 14 : 10, 180));
 
+    const defHome = defender.x;
+    const knock = kind === 'kick' ? 26 : 16;
+    await Promise.all([
+      tween(defender, 'x', defHome, defHome + (defender.flip ? knock : -knock), P(90)),
+      tween(defender, 'poseT', 0, 1, P(160)),
+    ]);
+    await Promise.all([
+      tween(attacker, 'x', attacker.x, home, P(140)),
+      tween(defender, 'x', defender.x, defHome, P(140)),
+    ]);
     attacker.pose = 'idle';
     defender.pose = 'idle';
-    await wait(P(140));
+    await wait(P(90));
   }
 }
 
 // Runs a single bout between the persisting champion and the next
 // challenger. `pickNumber` is the draft slot the loser will receive.
 async function runBout({ champion, opponent, pickNumber, isFirstBout, exchanges }) {
-  scene = { champion, opponent, vsAlpha: 0 };
+  scene = { champion, opponent, vsAlpha: 0, introAlpha: 0, fightAlpha: 0, fightScale: 1, leftName: champion.name, rightName: opponent.name, roundLabel: '' };
   champion.x = CHAMPION_X; champion.y = GROUND_Y; champion.flip = false;
   champion.hp = isFirstBout ? 1 : Math.min(1, champion.hp + 0.35); // patch up a little between rounds
   champion.pose = 'idle'; champion.alpha = 1; champion.scale = 1; champion.rot = 0;
@@ -948,27 +955,51 @@ async function runBout({ champion, opponent, pickNumber, isFirstBout, exchanges 
     await tween(opponent, 'x', OFFSCREEN_RIGHT, OPPONENT_X, P(500));
   }
 
-  scene.vsAlpha = 0;
-  await tween(scene, 'vsAlpha', 0, 1, P(150));
-  await wait(P(280));
-  await tween(scene, 'vsAlpha', 1, 0, P(150));
+  scene.roundLabel = 'ROUND';
+  scene.leftName = champion.name;
+  scene.rightName = opponent.name;
+  await tween(scene, 'introAlpha', 0, 1, 160);
+  speakVersus(champion.name, opponent.name);
+  await wait(1000);
+  await tween(scene, 'introAlpha', 1, 0, 120);
+
+  audio.playClip('fight', 1.2);
+  speakFight();
+  scene.fightAlpha = 1;
+  scene.fightScale = 2.5;
+  await tween(scene, 'fightScale', 2.5, 1, 220);
+  await wait(680);
+  await tween(scene, 'fightAlpha', 1, 0, 160);
 
   await exchangeBlows(champion, opponent, exchanges);
 
-  // Fatality beat: opponent always loses (the outcome was decided the
-  // instant the draft order was shuffled — this is just revealing it).
+  await audio.duck(1400);
+  audio.playClip('finish', 1.15);
+  speakFinishHim();
+  await flashOverlay('FINISH HIM', opponent.name.toUpperCase(), '#ffd200', 900, 52);
+
+  // finishing kick — opponent always loses (order was decided at shuffle)
+  const home = champion.x;
+  champion.pose = 'kick';
+  champion.poseT = 0;
+  await Promise.all([
+    tween(champion, 'x', home, home + 54, P(140)),
+    tween(champion, 'poseT', 0, 1, P(220)),
+  ]);
+  audio.playHit('kick');
   opponent.hp = 0;
   opponent.pose = 'ko';
   opponent.poseT = 0;
-  screenShake = 18;
+  screenShake = 20;
   audio.playFatalityStinger();
-  audio.duck(1000);
   speakFatality();
-  particles.push(...makeBurst(opponent.x, opponent.y - 30, '#e31b23', 26, 260));
-  await tween(opponent, 'poseT', 0, 1, P(380));
-  await tween(opponent, 'alpha', 1, 0.25, P(380));
+  particles.push(...makeBurst(opponent.x, opponent.y - 40, '#e31b23', 28, 280));
+  await tween(opponent, 'poseT', 0, 1, P(420));
+  await tween(opponent, 'alpha', 1, 0.18, P(360));
+  await tween(champion, 'x', champion.x, home, P(140));
+  champion.pose = 'idle';
 
-  await flashOverlay('FATALITY', `${opponent.name.toUpperCase()} — PICK #${pickNumber}`, '#e31b23', 1500, 44);
+  await flashOverlay('FATALITY', `${opponent.name.toUpperCase()} — PICK #${pickNumber}`, '#e31b23', 1300, 48);
 
   await wait(P(150));
 }
@@ -1104,12 +1135,15 @@ function stopRecorder() {
 
 /* ============================== Screen transitions ========================== */
 
-function launchSimulation() {
+async function launchSimulation() {
   showScreen('sim');
   appState.muted = false;
   muteBtn.textContent = '🔊';
   muteBtn.setAttribute('aria-pressed', 'false');
+  audio.ensureStarted();
   audio.setMuted(false);
+  if (audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume();
+  await Promise.all([loadAssets(), audio.preload()]);
   setupRecorder();
   runFullSimulation();
 }
