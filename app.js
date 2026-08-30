@@ -445,6 +445,8 @@ async function loadAssets() {
       idle: await loadImage(`fighters/${n}-idle.png`),
       punch: await loadImage(`fighters/${n}-punch.png`),
       kick: await loadImage(`fighters/${n}-kick.png`),
+      win: await loadImage(`fighters/${n}-win.png`),
+      tourney: await loadImage(`fighters/${n}-tourney.png`),
     };
   }));
   assets.arena = await loadImage('arena.jpg');
@@ -486,23 +488,27 @@ function drawFighter(ctx, f) {
   let img = sprites.idle;
   if (f.pose === 'punch') img = sprites.punch;
   else if (f.pose === 'kick') img = sprites.kick;
+  else if (f.pose === 'roundWin') img = sprites.win || sprites.idle;
+  else if (f.pose === 'tourneyWin' || f.pose === 'victory') img = sprites.tourney || sprites.idle;
 
   const now = performance.now();
   const bob = f.pose === 'idle' ? Math.sin(now / 260 + f.id) * 4
-    : f.pose === 'victory' ? Math.sin(now / 140) * 6 : 0;
+    : f.pose === 'roundWin' ? Math.sin(now / 180 + f.id) * 5
+    : (f.pose === 'victory' || f.pose === 'tourneyWin') ? Math.sin(now / 120) * 8 : 0;
   const hurtLean = f.pose === 'hurt' ? (1 - f.poseT) * -12 : 0;
   const koDrop = f.pose === 'ko' ? f.poseT * 48 : 0;
   const koRot = f.pose === 'ko' ? f.poseT * (f.flip ? 1.05 : -1.05) : 0;
   const punchBias = (f.pose === 'punch' || f.pose === 'kick') ? easeOutCubic(f.poseT) * 10 : 0;
 
   const aspect = img.width / img.height;
-  const dh = DRAW_H * f.scale;
+  const dh = DRAW_H * f.scale * ((f.pose === 'tourneyWin' || f.pose === 'victory') ? 1.06 : 1);
   const dw = dh * aspect;
 
   ctx.save();
   ctx.globalAlpha = f.alpha;
   ctx.translate(f.x + f.shakeX + hurtLean, f.y + bob + koDrop);
-  ctx.scale(f.flip ? -1 : 1, 1);
+  const faceCamera = f.pose === 'roundWin' || f.pose === 'tourneyWin' || f.pose === 'victory';
+  ctx.scale(faceCamera ? 1 : (f.flip ? -1 : 1), 1);
   ctx.rotate(f.rot + koRot);
 
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
@@ -1004,7 +1010,9 @@ async function runBout({ champion, opponent, pickNumber, isFirstBout, exchanges 
   await tween(opponent, 'poseT', 0, 1, P(220));
   await tween(opponent, 'alpha', 1, 0.18, P(160));
   await tween(champion, 'x', champion.x, home, P(70));
-  champion.pose = 'idle';
+  champion.pose = 'roundWin';
+  champion.flip = false;
+  champion.scale = 1.04;
 
   await flashOverlay('FATALITY', `${opponent.name.toUpperCase()} — PICK #${pickNumber}`, '#e31b23', 420, 48);
 }
@@ -1012,10 +1020,12 @@ async function runBout({ champion, opponent, pickNumber, isFirstBout, exchanges 
 async function runVictorySequence(champion) {
   scene = { champion, opponent: null, vsAlpha: 0 };
   champion.x = CW / 2; champion.y = GROUND_Y; champion.flip = false;
-  champion.pose = 'victory'; champion.hp = 1; champion.displayHp = 1; champion.chipHp = 1; champion.alpha = 1;
+  champion.pose = 'tourneyWin'; champion.hp = 1; champion.displayHp = 1; champion.chipHp = 1; champion.alpha = 1;
+  champion.scale = 1.12;
   audio.playVictoryFanfare();
   particles.push(...makeBurst(CW * 0.3, CH * 0.5, '#ffb627', 30, 300));
   particles.push(...makeBurst(CW * 0.7, CH * 0.5, '#00f0ff', 30, 300));
+  particles.push(...makeBurst(champion.x, champion.y - 220, champion.colorGlow, 40, 360));
   speakVictory(champion.name);
   await flashOverlay('VICTORY!', `${champion.name.toUpperCase()} — 1ST OVERALL PICK`, '#ffb627', 2200, 44);
 }
