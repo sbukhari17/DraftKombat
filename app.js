@@ -127,15 +127,39 @@ class AudioEngine {
   }
 
   playClip(name, gain = 1) {
-    if (!this.ctx || !this.sfxGain) return;
+    this.ensureStarted();
+    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    const urls = {
+      fight: 'audio/fight.mp3',
+      fatality: 'audio/fatality.mp3',
+      finish: 'audio/finish-him.mp3',
+      wins: 'audio/wins.mp3',
+      outstanding: 'audio/outstanding.mp3',
+    };
     const buf = this.clips[name];
-    if (!buf) return;
-    const src = this.ctx.createBufferSource();
-    src.buffer = buf;
-    const g = this.ctx.createGain();
-    g.gain.value = gain;
-    src.connect(g).connect(this.sfxGain);
-    src.start();
+    if (this.ctx && this.sfxGain && buf) {
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      const g = this.ctx.createGain();
+      g.gain.value = gain;
+      src.connect(g).connect(this.sfxGain);
+      src.start();
+      return buf.duration * 1000;
+    }
+    if (urls[name]) {
+      const el = new Audio(urls[name]);
+      el.volume = Math.min(1, Math.max(0.2, gain * 0.85));
+      el.play().catch(() => {});
+      return 1800;
+    }
+    return 0;
+  }
+
+  playAnnouncer(name, gain = 1.55) {
+    const ms = this.playClip(name, gain);
+    if (ms > 0) this.duck(Math.min(ms + 80, 2200));
+    return ms;
   }
 
   // Route the master bus to an extra destination (used to feed MediaRecorder).
@@ -332,7 +356,7 @@ class AudioEngine {
     osc.frequency.setValueAtTime(180, t);
     osc.frequency.exponentialRampToValueAtTime(35, t + 0.9);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.7, t + 0.05);
+    g.gain.linearRampToValueAtTime(0.12, t + 0.05);
     g.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
     osc.connect(g).connect(this.sfxGain);
     osc.start(t);
@@ -349,7 +373,7 @@ class AudioEngine {
     src.connect(lp).connect(ng).connect(this.sfxGain);
     src.start(t);
     src.stop(t + 0.95);
-    this.playClip('fatality', 1.15);
+    this.playClip('fatality', 1.7);
   }
 
   playVictoryFanfare() {
@@ -978,7 +1002,7 @@ async function runBout({ champion, opponent, pickNumber, isFirstBout, exchanges 
   await wait(420);
   await tween(scene, 'introAlpha', 1, 0, 80);
 
-  audio.playClip('fight', 1.2);
+  audio.playAnnouncer('fight', 1.5);
   scene.fightAlpha = 1;
   scene.fightScale = 2.5;
   await tween(scene, 'fightScale', 2.5, 1, 140);
@@ -987,9 +1011,8 @@ async function runBout({ champion, opponent, pickNumber, isFirstBout, exchanges 
 
   await exchangeBlows(champion, opponent, exchanges);
 
-  audio.playClip('finish', 1.15);
-  speakFinishHim();
-  await flashOverlay('FINISH HIM', opponent.name.toUpperCase(), '#ffd200', 280, 52);
+  const finishMs = audio.playAnnouncer('finish', 1.7);
+  await flashOverlay('FINISH HIM', opponent.name.toUpperCase(), '#ffd200', Math.min(Math.max(finishMs * 0.7, 700), 1400), 52);
 
   const home = champion.x;
   champion.pose = 'kick';
@@ -1004,8 +1027,7 @@ async function runBout({ champion, opponent, pickNumber, isFirstBout, exchanges 
   opponent.pose = 'ko';
   opponent.poseT = 0;
   screenShake = 20;
-  audio.playFatalityStinger();
-  speakFatality();
+  const fatMs = audio.playAnnouncer('fatality', 1.7);
   particles.push(...makeBurst(opponent.x, opponent.y - 40, '#e31b23', 28, 280));
   await tween(opponent, 'poseT', 0, 1, P(220));
   await tween(opponent, 'alpha', 1, 0.18, P(160));
@@ -1014,7 +1036,7 @@ async function runBout({ champion, opponent, pickNumber, isFirstBout, exchanges 
   champion.flip = false;
   champion.scale = 1.04;
 
-  await flashOverlay('FATALITY', `${opponent.name.toUpperCase()} — PICK #${pickNumber}`, '#e31b23', 420, 48);
+  await flashOverlay('FATALITY', `${opponent.name.toUpperCase()} — PICK #${pickNumber}`, '#e31b23', Math.min(Math.max(fatMs * 0.65, 700), 1400), 48);
 }
 
 async function runVictorySequence(champion) {
