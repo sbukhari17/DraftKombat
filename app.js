@@ -649,7 +649,7 @@ startBtn.addEventListener('click', () => {
   appState.leagueName = league;
   appState.teams = names;
   appState.fighters = names.map((n, i) => buildFighter(n, i, names.length));
-  appState.draftOrder = shuffle(appState.fighters);
+  appState.draftOrder = [];
 
   launchSimulation();
 });
@@ -893,12 +893,18 @@ async function flashOverlay(text, sub, color, holdMs, size = 46) {
   overlayText = null;
 }
 
-async function exchangeBlows(champion, opponent, hitCount) {
-  for (let i = 0; i < hitCount; i++) {
-    const attackerIsChampion = i % 2 === 0;
-    const attacker = attackerIsChampion ? champion : opponent;
-    const defender = attackerIsChampion ? opponent : champion;
-    const kind = i % 3 === 2 ? 'kick' : 'punch';
+async function exchangeBlows(left, right) {
+  const hits = new Map([[left, 0], [right, 0]]);
+  let attacker = Math.random() < 0.5 ? left : right;
+  for (let i = 0; i < 6; i++) {
+    const leftHits = hits.get(left) || 0;
+    const rightHits = hits.get(right) || 0;
+    if (leftHits >= 3 && rightHits >= 3) break;
+    if ((hits.get(attacker) || 0) >= 3) attacker = attacker === left ? right : left;
+    if ((hits.get(attacker) || 0) >= 3) break;
+    const defender = attacker === left ? right : left;
+    const n = hits.get(attacker) || 0;
+    const kind = n === 2 ? 'kick' : 'punch';
     const dir = attacker.flip ? -1 : 1;
     const home = attacker.x;
     const lunge = kind === 'kick' ? 54 : 42;
@@ -914,12 +920,10 @@ async function exchangeBlows(champion, opponent, hitCount) {
     defender.hitFlash = 1;
     defender.pose = 'hurt';
     defender.poseT = 0;
-    const dmg = attackerIsChampion ? rand(0.36, 0.46) : rand(0.14, 0.2);
-    const floor = attackerIsChampion ? 0.1 : 0.48;
-    defender.hp = Math.max(floor, defender.hp - dmg);
+    const dmg = kind === 'kick' ? rand(0.32, 0.44) : rand(0.26, 0.38);
+    defender.hp = Math.max(0.05, defender.hp - dmg);
     shakeScreen(kind === 'kick' ? 14 : 9);
-    const burstColor = attackerIsChampion ? champion.colorGlow : opponent.colorGlow;
-    particles.push(...makeBurst(defender.x, defender.y - (kind === 'kick' ? 90 : 140), burstColor, kind === 'kick' ? 14 : 10, 180));
+    particles.push(...makeBurst(defender.x, defender.y - (kind === 'kick' ? 90 : 140), attacker.colorGlow, kind === 'kick' ? 14 : 10, 180));
 
     const defHome = defender.x;
     const knock = kind === 'kick' ? 26 : 16;
@@ -934,39 +938,40 @@ async function exchangeBlows(champion, opponent, hitCount) {
     attacker.pose = 'idle';
     defender.pose = 'idle';
     await wait(P(30));
+    hits.set(attacker, n + 1);
+    if (defender.hp <= 0.08) break;
+    attacker = defender;
   }
 }
 
-// Runs a single bout between the persisting champion and the next
-// challenger. `pickNumber` is the draft slot the loser will receive.
-async function runBout({ champion, opponent, pickNumber, isFirstBout, exchanges }) {
-  scene = { champion, opponent, vsAlpha: 0, introAlpha: 0, fightAlpha: 0, fightScale: 1, leftName: champion.name, rightName: opponent.name, roundLabel: '' };
-  champion.x = CHAMPION_X; champion.y = GROUND_Y; champion.flip = false;
-  champion.hp = isFirstBout ? 1 : Math.min(1, champion.hp + 0.35);
-  champion.displayHp = champion.hp;
-  champion.chipHp = champion.hp;
-  champion.pose = 'idle'; champion.alpha = 1; champion.scale = 1; champion.rot = 0;
+function resetFighter(f, side) {
+  f.y = GROUND_Y;
+  f.flip = side === 'right';
+  f.hp = 1;
+  f.displayHp = 1;
+  f.chipHp = 1;
+  f.pose = 'idle';
+  f.alpha = 1;
+  f.scale = 1;
+  f.rot = 0;
+  f.hitFlash = 0;
+}
 
-  opponent.y = GROUND_Y; opponent.flip = true; opponent.hp = 1;
-  opponent.displayHp = 1; opponent.chipHp = 1;
-  opponent.pose = 'idle'; opponent.alpha = 1; opponent.scale = 1; opponent.rot = 0;
-
-  if (isFirstBout) {
-    champion.x = OFFSCREEN_LEFT;
-    opponent.x = OFFSCREEN_RIGHT;
-    await Promise.all([
-      tween(champion, 'x', OFFSCREEN_LEFT, CHAMPION_X, P(240)),
-      tween(opponent, 'x', OFFSCREEN_RIGHT, OPPONENT_X, P(240)),
-    ]);
-  } else {
-    opponent.x = OFFSCREEN_RIGHT;
-    audio.playWhoosh();
-    await tween(opponent, 'x', OFFSCREEN_RIGHT, OPPONENT_X, P(180));
-  }
+async function runBout({ left, right, pickNumber }) {
+  scene = { champion: left, opponent: right, vsAlpha: 0, introAlpha: 0, fightAlpha: 0, fightScale: 1, leftName: left.name, rightName: right.name, roundLabel: '' };
+  resetFighter(left, 'left');
+  resetFighter(right, 'right');
+  left.x = OFFSCREEN_LEFT;
+  right.x = OFFSCREEN_RIGHT;
+  audio.playWhoosh();
+  await Promise.all([
+    tween(left, 'x', OFFSCREEN_LEFT, CHAMPION_X, P(240)),
+    tween(right, 'x', OFFSCREEN_RIGHT, OPPONENT_X, P(240)),
+  ]);
 
   scene.roundLabel = 'ROUND';
-  scene.leftName = champion.name;
-  scene.rightName = opponent.name;
+  scene.leftName = left.name;
+  scene.rightName = right.name;
   await tween(scene, 'introAlpha', 0, 1, 90);
   await wait(420);
   await tween(scene, 'introAlpha', 1, 0, 80);
@@ -978,34 +983,49 @@ async function runBout({ champion, opponent, pickNumber, isFirstBout, exchanges 
   await wait(220);
   await tween(scene, 'fightAlpha', 1, 0, 80);
 
-  await exchangeBlows(champion, opponent, exchanges);
+  await exchangeBlows(left, right);
+
+  const winner = left.hp === right.hp ? (Math.random() < 0.5 ? left : right) : (left.hp > right.hp ? left : right);
+  const loser = winner === left ? right : left;
 
   const finishMs = audio.playAnnouncer('finish', 1.7);
-  await flashOverlay('FINISH HIM', opponent.name.toUpperCase(), '#ffd200', Math.min(Math.max(finishMs * 0.7, 700), 1400), 52);
+  await flashOverlay('FINISH HIM', loser.name.toUpperCase(), '#ffd200', Math.min(Math.max(finishMs * 0.7, 700), 1400), 52);
 
-  const home = champion.x;
-  champion.pose = 'kick';
-  champion.poseT = 0;
+  const home = winner.x;
+  const dir = winner.flip ? -1 : 1;
+  winner.pose = 'kick';
+  winner.poseT = 0;
   await Promise.all([
-    tween(champion, 'x', home, home + 54, P(80)),
-    tween(champion, 'poseT', 0, 1, P(120)),
+    tween(winner, 'x', home, home + dir * 54, P(80)),
+    tween(winner, 'poseT', 0, 1, P(120)),
   ]);
   audio.playHit('kick');
-  opponent.hp = 0;
-  opponent.displayHp = 0;
-  opponent.pose = 'ko';
-  opponent.poseT = 0;
+  loser.hp = 0;
+  loser.displayHp = 0;
+  loser.pose = 'ko';
+  loser.poseT = 0;
   screenShake = 20;
   const fatMs = audio.playAnnouncer('fatality', 1.7);
-  particles.push(...makeBurst(opponent.x, opponent.y - 40, '#e31b23', 28, 280));
-  await tween(opponent, 'poseT', 0, 1, P(220));
-  await tween(opponent, 'alpha', 1, 0.18, P(160));
-  await tween(champion, 'x', champion.x, home, P(70));
-  champion.pose = 'roundWin';
-  champion.flip = false;
-  champion.scale = 1.04;
+  particles.push(...makeBurst(loser.x, loser.y - 40, '#e31b23', 28, 280));
+  await tween(loser, 'poseT', 0, 1, P(220));
+  await tween(loser, 'alpha', 1, 0.18, P(160));
+  await tween(winner, 'x', winner.x, home, P(70));
+  winner.pose = 'roundWin';
+  winner.flip = false;
+  winner.scale = 1.04;
+  if (winner === left) scene.opponent = null;
+  else scene.champion = null;
 
-  await flashOverlay('FATALITY', `${opponent.name.toUpperCase()} — PICK #${pickNumber}`, '#e31b23', Math.min(Math.max(fatMs * 0.65, 700), 1400), 48);
+  await flashOverlay('FATALITY', `${loser.name.toUpperCase()} — PICK #${pickNumber}`, '#e31b23', Math.min(Math.max(fatMs * 0.65, 700), 1400), 48);
+  return { winner, loser };
+}
+
+async function walkOff(winner) {
+  const off = winner.x < CW / 2 ? OFFSCREEN_LEFT : OFFSCREEN_RIGHT;
+  await tween(winner, 'x', winner.x, off, P(220));
+  winner.alpha = 0;
+  if (scene && scene.champion === winner) scene.champion = null;
+  if (scene && scene.opponent === winner) scene.opponent = null;
 }
 
 async function runVictorySequence(champion) {
@@ -1021,8 +1041,6 @@ async function runVictorySequence(champion) {
 }
 
 function computePacing(_fightCount) {
-  // At most 3 hits per fighter, whole bout ≤ 5s.
-  // Combat is C-O-C-O then the champion's finishing kick.
   return { exchanges: 4, pace: 1 };
 }
 
@@ -1031,13 +1049,11 @@ async function runFullSimulation() {
   skipBtn.disabled = false;
   skipBtn.textContent = 'Fast-forward ⏭';
 
-  const order = appState.draftOrder; // index0 = pick1 ... last = pickN
-  const n = order.length;
-  const champion = order[0];
-  const challengers = order.slice(1).reverse(); // first = pickN (eliminated first)
-  const paced = computePacing(challengers.length);
-  const exchanges = paced.exchanges;
+  const remaining = shuffle(appState.fighters.slice());
+  const n = remaining.length;
+  const paced = computePacing(n - 1);
   pace = paced.pace;
+  const byName = new Map(appState.fighters.map((f) => [f.name, f]));
 
   resetSceneVisuals();
   startRenderLoop();
@@ -1045,17 +1061,33 @@ async function runFullSimulation() {
   appState.revealed = [];
   renderDraftRail(n);
 
-  for (let i = 0; i < challengers.length; i++) {
-    const opponent = challengers[i];
-    const pickNumber = n - i;
-    await runBout({ champion, opponent, pickNumber, isFirstBout: i === 0, exchanges });
-    appState.revealed.push({ pick: pickNumber, name: opponent.name });
+  let nextPick = n;
+  while (remaining.length > 1) {
+    const i = Math.floor(Math.random() * remaining.length);
+    let j = Math.floor(Math.random() * (remaining.length - 1));
+    if (j >= i) j += 1;
+    const a = remaining[i];
+    const b = remaining[j];
+    const left = Math.random() < 0.5 ? a : b;
+    const right = left === a ? b : a;
+    const { winner, loser } = await runBout({ left, right, pickNumber: nextPick });
+    const idx = remaining.indexOf(loser);
+    if (idx >= 0) remaining.splice(idx, 1);
+    appState.revealed.push({ pick: nextPick, name: loser.name });
+    nextPick -= 1;
     renderDraftRail(n);
+    if (remaining.length > 1) await walkOff(winner);
   }
 
-  await runVictorySequence(champion);
-  appState.revealed.push({ pick: 1, name: champion.name });
+  const champ = remaining[0];
+  appState.revealed.push({ pick: 1, name: champ.name });
+  appState.draftOrder = appState.revealed
+    .slice()
+    .sort((a, b) => a.pick - b.pick)
+    .map((r) => byName.get(r.name))
+    .filter(Boolean);
   renderDraftRail(n);
+  await runVictorySequence(champ);
   await wait(P(600));
 
   audio.stopMusic();
@@ -1290,7 +1322,6 @@ document.getElementById('download-png-btn').addEventListener('click', () => {
 });
 
 document.getElementById('replay-btn').addEventListener('click', () => {
-  // Same draft order, same fight sequence — just watch it again.
   appState.fighters.forEach(f => { f.hp = 1; f.alpha = 1; f.hitFlash = 0; f.pose = 'idle'; });
   if (appState.videoBlobUrl) { URL.revokeObjectURL(appState.videoBlobUrl); appState.videoBlobUrl = null; }
   launchSimulation();

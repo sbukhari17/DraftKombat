@@ -10,19 +10,17 @@ Live: `https://sbukhari17.github.io/DraftKombat/`
 ## What it does
 
 1. You enter a league name and 4–16 team names.
-2. The draft order is shuffled randomly, client-side, the moment you hit
-   **Start Draft Kombat** — and never shown to you directly.
-3. An arcade fight plays on a `<canvas>`. A running champion holds the
-   pit. Challengers walk in one by one. Each bout is about 5 seconds —
+2. Two remaining fighters are drawn at random each round. Either side can
+   win — the leftover “champion on the left” gauntlet is gone.
+3. An arcade fight plays on a `<canvas>`. Each bout is about 5 seconds,
    at most 3 hits per fighter.
 4. Each round opens with a short visual intro (`NAME vs NAME`) then a
    big **FIGHT** slam. Combat is punches and kicks only — no guns.
-   Team names are not spoken (that slowed the start of the round).
-5. Sixteen original kombatants (idle / punch / kick) are reused across
-   every draft, plus an original industrial theme and announcer clips
-   (Fight, Finish him, Fatality, Wins).
-6. Each elimination is a **FINISH HIM** into **FATALITY**, revealing the
-   next draft pick, worst to first.
+5. Sixteen original kombatants (idle / punch / kick / win / tourney) are
+   reused across every draft, plus an original industrial theme and
+   announcer clips (Fight, Finish him, Fatality, Wins).
+6. The loser of each match is a **FINISH HIM** into **FATALITY**, filling
+   the next draft slot, last pick first.
 7. The last fighter standing is awarded the 1st overall pick.
 8. Replay, download video, or download the order as a PNG.
 9. Nothing is saved anywhere. Refresh the page and it's gone.
