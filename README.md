@@ -41,10 +41,9 @@ Static site — no build step.
 - **Video format.** `MediaRecorder` gives MP4 on Safari and WebM on most
   Chrome/Firefox builds. Convert with `ffmpeg -i input.webm output.mp4`
   if you need that container.
-- **Spoken announcer.** Web Speech API plays live in the tab but is not
-  captured in the downloaded video. Recordings still get the on-screen
-  FIGHT / FINISH HIM / FATALITY text plus original announcer clips and
-  the impact stinger (those *are* in the Web Audio graph).
+- **Announcer.** FIGHT / FINISH HIM / FATALITY / WINS play from MP3s in
+  `audio/` through the Web Audio graph (so they are captured in recordings).
+  There is no browser text-to-speech.
 - **Runtime.** Each bout is capped at about 5 seconds (intro, a few
   punches and kicks, then FINISH HIM / FATALITY).
 - **Fighters** are original designs — not likenesses of any existing
