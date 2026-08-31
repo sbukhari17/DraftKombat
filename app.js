@@ -693,6 +693,7 @@ let overlayText = null; // {text, sub, size, color, alpha, y}
 let screenShake = 0;
 let renderLoopActive = false;
 let showResultsBoard = false;
+let showIntroBoard = false;
 
 function resetSceneVisuals() {
   particles = [];
@@ -786,6 +787,11 @@ function renderFrame(now) {
   const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
   lastFrameTime = now;
 
+  if (showIntroBoard) {
+    drawIntroRoster(ctx, CW, CH);
+    requestAnimationFrame(renderFrame);
+    return;
+  }
   if (showResultsBoard) {
     drawPlacementBoard(ctx, CW, CH);
     requestAnimationFrame(renderFrame);
@@ -1064,10 +1070,13 @@ async function runFullSimulation() {
 
   resetSceneVisuals();
   showResultsBoard = false;
+  showIntroBoard = true;
   startRenderLoop();
   audio.startMusic();
   appState.revealed = [];
   renderDraftRail(n);
+  await wait(4000);
+  showIntroBoard = false;
 
   let nextPick = n;
   while (remaining.length > 1) {
@@ -1257,6 +1266,72 @@ function renderResultsScreen() {
 // Renders a clean, static "final draft order" card to the hidden export
 // canvas so the PNG download always looks the same regardless of whatever
 // is animating on the live fight canvas.
+function boardTitle() {
+  const n = (appState.leagueName || '').trim();
+  if (!n || /^untitled league$/i.test(n)) return 'DRAFT KOMBAT';
+  return n.toUpperCase();
+}
+
+function drawIntroRoster(ectx, W, H) {
+  if (assets.arena) ectx.drawImage(assets.arena, 0, 0, W, H);
+  ectx.fillStyle = 'rgba(7,7,10,0.82)';
+  ectx.fillRect(0, 0, W, H);
+
+  const title = boardTitle();
+  const titleSize = title.length > 28 ? 26 : title.length > 18 ? 34 : 44;
+  ectx.textAlign = 'center';
+  ectx.fillStyle = '#e31b23';
+  ectx.font = `${titleSize}px "Black Ops One", "Press Start 2P", Impact, sans-serif`;
+  ectx.shadowBlur = 0;
+  ectx.fillText(title, W / 2, 52);
+  ectx.fillStyle = '#ffd200';
+  ectx.font = '14px Orbitron, sans-serif';
+  ectx.fillText('THE KOMBATANTS', W / 2, 76);
+
+  const list = appState.fighters || [];
+  const n = list.length;
+  const cols = n <= 4 ? n : 4;
+  const rows = Math.max(1, Math.ceil(n / cols));
+  const padX = 36;
+  const top = 96;
+  const bottom = 18;
+  const cellW = (W - padX * 2) / cols;
+  const cellH = (H - top - bottom) / rows;
+
+  list.forEach((f, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const x = padX + col * cellW;
+    const y = top + row * cellH;
+    ectx.fillStyle = 'rgba(255,255,255,0.04)';
+    ectx.fillRect(x + 6, y + 4, cellW - 12, cellH - 8);
+    ectx.strokeStyle = 'rgba(255,210,0,0.28)';
+    ectx.strokeRect(x + 6, y + 4, cellW - 12, cellH - 8);
+
+    const sprites = assets.fighters[f.modelId];
+    const img = (sprites && (sprites.win || sprites.idle)) || null;
+    const nameH = 36;
+    if (img) {
+      const boxW = cellW - 24;
+      const boxH = cellH - nameH - 16;
+      const scale = Math.min(boxW / img.width, boxH / img.height);
+      const dw = img.width * scale;
+      const dh = img.height * scale;
+      const dx = x + (cellW - dw) / 2;
+      const dy = y + 10 + (boxH - dh);
+      ectx.drawImage(img, dx, dy, dw, dh);
+    }
+
+    ectx.textAlign = 'center';
+    ectx.fillStyle = '#f5f0e8';
+    ectx.font = '16px Orbitron, sans-serif';
+    ectx.fillText((f.name || '').toUpperCase(), x + cellW / 2, y + cellH - 18);
+    ectx.fillStyle = '#9a8f7e';
+    ectx.font = '11px Orbitron, sans-serif';
+    ectx.fillText((f.modelTitle || '').toUpperCase(), x + cellW / 2, y + cellH - 6);
+  });
+}
+
 function drawPlacementBoard(ectx, W, H) {
   if (assets.arena) ectx.drawImage(assets.arena, 0, 0, W, H);
   else {
