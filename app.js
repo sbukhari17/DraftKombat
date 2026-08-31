@@ -552,6 +552,7 @@ const appState = {
   videoBlobUrl: null,
   videoExt: 'webm',
   running: false,
+  revealed: [],
 };
 
 const audio = new AudioEngine();
@@ -1041,14 +1042,20 @@ async function runFullSimulation() {
   resetSceneVisuals();
   startRenderLoop();
   audio.startMusic();
+  appState.revealed = [];
+  renderDraftRail(n);
 
   for (let i = 0; i < challengers.length; i++) {
     const opponent = challengers[i];
     const pickNumber = n - i;
     await runBout({ champion, opponent, pickNumber, isFirstBout: i === 0, exchanges });
+    appState.revealed.push({ pick: pickNumber, name: opponent.name });
+    renderDraftRail(n);
   }
 
   await runVictorySequence(champion);
+  appState.revealed.push({ pick: 1, name: champion.name });
+  renderDraftRail(n);
   await wait(P(600));
 
   audio.stopMusic();
@@ -1140,6 +1147,32 @@ async function finishSimulation() {
   stopRenderLoop();
   renderResultsScreen();
   showScreen('results');
+}
+
+/* ============================== Draft rail ============================== */
+
+const draftRailList = document.getElementById('draft-rail-list');
+
+function renderDraftRail(teamCount) {
+  if (!draftRailList) return;
+  const byPick = new Map((appState.revealed || []).map((r) => [r.pick, r]));
+  const n = teamCount || (appState.draftOrder && appState.draftOrder.length) || 0;
+  draftRailList.innerHTML = '';
+  for (let pick = 1; pick <= n; pick++) {
+    const row = byPick.get(pick);
+    const li = document.createElement('li');
+    if (row) li.classList.add('filled');
+    if (row && pick === 1) li.classList.add('pick-one');
+    const num = document.createElement('span');
+    num.className = 'pick-num';
+    num.textContent = String(pick);
+    const name = document.createElement('span');
+    name.className = 'pick-name';
+    name.textContent = row ? row.name : '—';
+    li.appendChild(num);
+    li.appendChild(name);
+    draftRailList.appendChild(li);
+  }
 }
 
 /* ============================== Results screen ============================== */

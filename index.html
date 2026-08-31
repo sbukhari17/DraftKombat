@@ -50,13 +50,19 @@
 
   <section id="screen-sim" class="screen" aria-labelledby="sim-heading">
     <h2 id="sim-heading" class="sr-only">Draft Kombat tournament in progress</h2>
-    <div class="stage-wrap">
-      <canvas id="fight-canvas" width="1280" height="720"></canvas>
-      <div class="sim-controls">
-        <button type="button" id="mute-btn" class="btn btn-icon" aria-pressed="false" title="Mute">🔊</button>
-        <button type="button" id="skip-btn" class="btn btn-ghost" title="Fast-forward to the results">Fast-forward ⏭</button>
+    <div class="sim-layout">
+      <div class="stage-wrap">
+        <canvas id="fight-canvas" width="1280" height="720"></canvas>
+        <div class="sim-controls">
+          <button type="button" id="mute-btn" class="btn btn-icon" aria-pressed="false" title="Mute">🔊</button>
+        </div>
       </div>
+      <aside id="draft-rail" class="draft-rail" aria-label="Draft order">
+        <p class="draft-rail-title">DRAFT ORDER</p>
+        <ol id="draft-rail-list"></ol>
+      </aside>
     </div>
+    <button type="button" id="skip-btn" class="btn btn-ghost skip-fab" title="Fast-forward to the results">Fast-forward ⏭</button>
     <p class="sim-hint">First eliminated gets the last pick. Last fighter standing gets the 1st overall pick.</p>
   </section>
 
