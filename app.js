@@ -692,6 +692,7 @@ let particles = [];
 let overlayText = null; // {text, sub, size, color, alpha, y}
 let screenShake = 0;
 let renderLoopActive = false;
+let showResultsBoard = false;
 
 function resetSceneVisuals() {
   particles = [];
@@ -784,6 +785,12 @@ function renderFrame(now) {
   if (!renderLoopActive) return;
   const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
   lastFrameTime = now;
+
+  if (showResultsBoard) {
+    drawPlacementBoard(ctx, CW, CH);
+    requestAnimationFrame(renderFrame);
+    return;
+  }
 
   ctx.save();
   if (screenShake > 0.1) {
@@ -1016,7 +1023,7 @@ async function runBout({ left, right, pickNumber }) {
   if (winner === left) scene.opponent = null;
   else scene.champion = null;
 
-  await flashOverlay('FATALITY', `${loser.name.toUpperCase()} — PICK #${pickNumber}`, '#e31b23', Math.min(Math.max(fatMs * 0.65, 700), 1400), 48);
+  await flashOverlay(`${winner.name.toUpperCase()} WINS!`, `${loser.name.toUpperCase()} — PICK #${pickNumber}`, '#ffd200', Math.min(Math.max(fatMs * 0.65, 700), 1400), winner.name.length > 12 ? 36 : 48);
   return { winner, loser };
 }
 
@@ -1056,6 +1063,7 @@ async function runFullSimulation() {
   const byName = new Map(appState.fighters.map((f) => [f.name, f]));
 
   resetSceneVisuals();
+  showResultsBoard = false;
   startRenderLoop();
   audio.startMusic();
   appState.revealed = [];
@@ -1088,7 +1096,9 @@ async function runFullSimulation() {
     .filter(Boolean);
   renderDraftRail(n);
   await runVictorySequence(champ);
-  await wait(P(600));
+  showResultsBoard = true;
+  await wait(3000);
+  showResultsBoard = false;
 
   audio.stopMusic();
   finishSimulation();
@@ -1247,53 +1257,54 @@ function renderResultsScreen() {
 // Renders a clean, static "final draft order" card to the hidden export
 // canvas so the PNG download always looks the same regardless of whatever
 // is animating on the live fight canvas.
-function drawResultsExportImage() {
-  const ectx = exportCanvas.getContext('2d');
-  const W = exportCanvas.width, H = exportCanvas.height;
-
-  const g = ectx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#1a1530');
-  g.addColorStop(1, '#050409');
-  ectx.fillStyle = g;
+function drawPlacementBoard(ectx, W, H) {
+  if (assets.arena) ectx.drawImage(assets.arena, 0, 0, W, H);
+  else {
+    const g = ectx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#1a1530');
+    g.addColorStop(1, '#050409');
+    ectx.fillStyle = g;
+    ectx.fillRect(0, 0, W, H);
+  }
+  ectx.fillStyle = 'rgba(7,7,10,0.84)';
   ectx.fillRect(0, 0, W, H);
 
   ectx.textAlign = 'center';
-  ectx.fillStyle = '#f5f0e8';
-  ectx.font = '38px "Press Start 2P", monospace';
-  ectx.shadowColor = '#00f0ff';
-  ectx.shadowBlur = 14;
-  ectx.fillText('DRAFT KOMBAT', W / 2, 80);
-
+  ectx.fillStyle = '#e31b23';
+  ectx.font = '42px "Black Ops One", "Press Start 2P", Impact, sans-serif';
+  ectx.shadowColor = 'transparent';
   ectx.shadowBlur = 0;
-  ectx.font = '22px Orbitron, sans-serif';
-  ectx.fillStyle = '#b9b4c9';
-  ectx.fillText(appState.leagueName, W / 2, 118);
+  ectx.fillText('DRAFT KOMBAT', W / 2, 58);
+  ectx.fillStyle = '#ffd200';
+  ectx.font = '20px Orbitron, sans-serif';
+  ectx.fillText((appState.leagueName || '').toUpperCase(), W / 2, 88);
+  ectx.fillStyle = '#9a8f7e';
+  ectx.font = '14px Orbitron, sans-serif';
+  ectx.fillText('FINAL DRAFT ORDER', W / 2, 110);
 
-  const order = appState.draftOrder;
-  const startY = 160;
-  const rowH = Math.min(46, (H - startY - 40) / order.length);
+  const order = appState.draftOrder || [];
+  const startY = 128;
+  const rowH = Math.min(34, (H - startY - 28) / Math.max(1, order.length));
   order.forEach((f, i) => {
     const y = startY + i * rowH;
-    ectx.fillStyle = i === 0 ? 'rgba(255,182,39,0.14)' : 'rgba(255,255,255,0.03)';
-    ectx.fillRect(W * 0.16, y, W * 0.68, rowH - 8);
-    ectx.strokeStyle = i === 0 ? '#ffb627' : '#2a2740';
-    ectx.strokeRect(W * 0.16, y, W * 0.68, rowH - 8);
+    ectx.fillStyle = i === 0 ? 'rgba(255,210,0,0.16)' : 'rgba(255,255,255,0.04)';
+    ectx.fillRect(W * 0.1, y, W * 0.8, rowH - 5);
+    ectx.strokeStyle = i === 0 ? '#ffd200' : '#2c2c36';
+    ectx.strokeRect(W * 0.1, y, W * 0.8, rowH - 5);
 
     ectx.textAlign = 'left';
-    ectx.fillStyle = i === 0 ? '#ffb627' : '#00f0ff';
-    ectx.font = '16px "Press Start 2P", monospace';
-    ectx.fillText(`PICK ${i + 1}`, W * 0.19, y + rowH / 2 + 6);
-
-    ectx.textAlign = 'right';
+    ectx.fillStyle = i === 0 ? '#ffd200' : '#e31b23';
+    ectx.font = '15px Orbitron, sans-serif';
+    ectx.fillText(`PICK ${i + 1}`, W * 0.18, y + rowH / 2 + 4);
     ectx.fillStyle = '#f5f0e8';
-    ectx.font = '20px Orbitron, sans-serif';
-    ectx.fillText(f.name, W * 0.81, y + rowH / 2 + 7);
+    ectx.font = '18px Orbitron, sans-serif';
+    ectx.fillText(f.name, W * 0.28, y + rowH / 2 + 4);
   });
+}
 
-  ectx.textAlign = 'center';
-  ectx.fillStyle = '#5c5875';
-  ectx.font = '13px Orbitron, sans-serif';
-  ectx.fillText('draftkombat — generated client-side, never saved', W / 2, H - 20);
+function drawResultsExportImage() {
+  const ectx = exportCanvas.getContext('2d');
+  drawPlacementBoard(ectx, exportCanvas.width, exportCanvas.height);
 }
 
 /* ============================== Export buttons ============================== */
