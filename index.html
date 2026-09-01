@@ -34,10 +34,11 @@
 
       <div class="field">
         <div class="teams-label-row">
-          <label>Teams <span id="team-count-label">(4–16)</span></label>
+          <label for="team-count">Teams — <span id="team-count-label">4</span></label>
         </div>
+        <input type="range" id="team-count" min="4" max="16" step="1" value="4" aria-label="Number of teams">
+        <div class="slider-ends"><span>4</span><span>16</span></div>
         <ol id="team-list" class="team-list"></ol>
-        <button type="button" id="add-team-btn" class="btn btn-ghost">+ Add team</button>
       </div>
 
       <p id="setup-error" class="error-text" role="alert" hidden></p>

@@ -452,13 +452,13 @@ async function loadAssets() {
   assets.ready = true;
 }
 
-function buildFighter(name, index, total) {
+function buildFighter(name, index, total, modelId) {
   const hue = Math.round((360 / total) * index) % 360;
-  const model = ROSTER[index % ROSTER.length];
+  const model = ROSTER[modelId % ROSTER.length];
   return {
     name,
     id: index,
-    modelId: index % ROSTER.length,
+    modelId: modelId % ROSTER.length,
     modelTitle: model.title,
     colorPrimary: `hsl(${hue}, 78%, 58%)`,
     colorDark: `hsl(${hue}, 70%, 32%)`,
@@ -571,7 +571,8 @@ function showScreen(name) {
 }
 
 const teamListEl = document.getElementById('team-list');
-const addTeamBtn = document.getElementById('add-team-btn');
+const teamCountSlider = document.getElementById('team-count');
+const teamCountLabel = document.getElementById('team-count-label');
 const startBtn = document.getElementById('start-btn');
 const setupError = document.getElementById('setup-error');
 const leagueNameInput = document.getElementById('league-name');
@@ -580,9 +581,6 @@ const MIN_TEAMS = 4;
 const MAX_TEAMS = 16;
 
 function addTeamRow(prefillName = '') {
-  const rows = teamListEl.querySelectorAll('.team-row');
-  if (rows.length >= MAX_TEAMS) return;
-
   const li = document.createElement('li');
   li.className = 'team-row';
 
@@ -595,44 +593,43 @@ function addTeamRow(prefillName = '') {
   input.autocomplete = 'off';
   input.value = prefillName;
 
-  const removeBtn = document.createElement('button');
-  removeBtn.type = 'button';
-  removeBtn.className = 'remove-team-btn';
-  removeBtn.setAttribute('aria-label', 'Remove team');
-  removeBtn.textContent = '✕';
-  removeBtn.addEventListener('click', () => {
-    li.remove();
-    renumberTeamRows();
-  });
-
   li.appendChild(idxSpan);
   li.appendChild(input);
-  li.appendChild(removeBtn);
   teamListEl.appendChild(li);
-
-  renumberTeamRows();
-  input.placeholder = `Team ${teamListEl.querySelectorAll('.team-row').length} name`;
 }
 
-function renumberTeamRows() {
+function currentTeamNames() {
+  return [...teamListEl.querySelectorAll('.team-row input')].map((inp) => inp.value);
+}
+
+function setTeamCount(n, names) {
+  n = clamp(Math.round(n), MIN_TEAMS, MAX_TEAMS);
+  const existing = names || currentTeamNames();
+  teamListEl.innerHTML = '';
+  for (let i = 0; i < n; i++) addTeamRow(existing[i] || '');
   const rows = teamListEl.querySelectorAll('.team-row');
   rows.forEach((row, i) => {
     row.querySelector('.team-index').textContent = `${i + 1}.`;
     row.querySelector('input').placeholder = `Team ${i + 1} name`;
-    row.querySelector('.remove-team-btn').disabled = rows.length <= MIN_TEAMS;
   });
-  addTeamBtn.disabled = rows.length >= MAX_TEAMS;
-  addTeamBtn.style.opacity = rows.length >= MAX_TEAMS ? 0.4 : 1;
+  teamCountSlider.value = String(n);
+  teamCountLabel.textContent = String(n);
 }
 
 function resetSetupForm(prefillNames = []) {
-  teamListEl.innerHTML = '';
   const names = prefillNames.length ? prefillNames : new Array(MIN_TEAMS).fill('');
-  names.forEach(n => addTeamRow(n));
+  setTeamCount(names.length, names);
   setupError.hidden = true;
 }
 
-addTeamBtn.addEventListener('click', () => addTeamRow());
+teamCountSlider.addEventListener('input', () => {
+  setTeamCount(Number(teamCountSlider.value), currentTeamNames());
+});
+
+function assignRandomFighters(names) {
+  const ids = shuffle(ROSTER.map((_, i) => i));
+  return names.map((n, i) => buildFighter(n, i, names.length, ids[i]));
+}
 
 startBtn.addEventListener('click', () => {
   const league = leagueNameInput.value.trim() || 'Untitled League';
@@ -648,7 +645,7 @@ startBtn.addEventListener('click', () => {
 
   appState.leagueName = league;
   appState.teams = names;
-  appState.fighters = names.map((n, i) => buildFighter(n, i, names.length));
+  appState.fighters = assignRandomFighters(names);
   appState.draftOrder = [];
 
   launchSimulation();
@@ -1194,6 +1191,9 @@ async function launchSimulation() {
   audio.setMuted(false);
   if (audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume();
   await Promise.all([loadAssets(), audio.preload()]);
+  if (appState.teams && appState.teams.length) {
+    appState.fighters = assignRandomFighters(appState.teams);
+  }
   setupRecorder();
   runFullSimulation();
 }
