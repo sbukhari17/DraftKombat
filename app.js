@@ -117,13 +117,13 @@ class AudioEngine {
       } catch (e) { return null; }
     };
     this.theme = await decode('audio/theme.mp3');
-    const clipNames = ['fight', 'fatality', 'finish', 'wins', 'outstanding', 'round-final'];
-    for (let i = 1; i <= 14; i++) clipNames.push(`round-${i}`);
-    this.clips = {};
-    for (const name of clipNames) {
-      const file = name === 'finish' ? 'finish-him' : name;
-      this.clips[name] = await decode(`audio/${file}.mp3`);
-    }
+    this.clips = {
+      fight: await decode('audio/fight.mp3'),
+      fatality: await decode('audio/fatality.mp3'),
+      finish: await decode('audio/finish-him.mp3'),
+      wins: await decode('audio/wins.mp3'),
+      outstanding: await decode('audio/outstanding.mp3'),
+    };
   }
 
   playClip(name, gain = 1) {
@@ -135,9 +135,7 @@ class AudioEngine {
       finish: 'audio/finish-him.mp3',
       wins: 'audio/wins.mp3',
       outstanding: 'audio/outstanding.mp3',
-      'round-final': 'audio/round-final.mp3',
     };
-    for (let i = 1; i <= 14; i++) urls[`round-${i}`] = `audio/round-${i}.mp3`;
     const buf = this.clips[name];
     if (this.ctx && this.sfxGain && buf) {
       const src = this.ctx.createBufferSource();
@@ -988,17 +986,16 @@ async function runBout({ left, right, pickNumber, round, totalRounds }) {
   scene.roundLabel = isFinal ? 'FINAL ROUND' : `ROUND ${round}`;
   scene.leftName = left.name;
   scene.rightName = right.name;
+  const clipMs = audio.playAnnouncer('fight', 1.5) || 3530;
   await tween(scene, 'introAlpha', 0, 1, 90);
-  const roundClip = isFinal ? 'round-final' : `round-${Math.min(round, 14)}`;
-  const roundMs = audio.playAnnouncer(roundClip, 1.55);
-  await wait(Math.max(roundMs, 1100) + 180);
+  await wait(Math.max(0, 1850 - 90));
   await tween(scene, 'introAlpha', 1, 0, 80);
 
-  const fightMs = audio.playAnnouncer('fight', 1.5);
   scene.fightAlpha = 1;
   scene.fightScale = 2.5;
   await tween(scene, 'fightScale', 2.5, 1, 140);
-  await wait(Math.max(fightMs - 140, 1200));
+  const used = 90 + 1760 + 80 + 140;
+  await wait(Math.max(400, clipMs - used + 120));
   await tween(scene, 'fightAlpha', 1, 0, 80);
 
   await exchangeBlows(left, right);
