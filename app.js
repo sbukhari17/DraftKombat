@@ -117,13 +117,13 @@ class AudioEngine {
       } catch (e) { return null; }
     };
     this.theme = await decode('audio/theme.mp3');
-    this.clips = {
-      fight: await decode('audio/fight.mp3'),
-      fatality: await decode('audio/fatality.mp3'),
-      finish: await decode('audio/finish-him.mp3'),
-      wins: await decode('audio/wins.mp3'),
-      outstanding: await decode('audio/outstanding.mp3'),
-    };
+    const clipNames = ['fight', 'fatality', 'finish', 'wins', 'outstanding', 'round-final'];
+    for (let i = 1; i <= 14; i++) clipNames.push(`round-${i}`);
+    this.clips = {};
+    for (const name of clipNames) {
+      const file = name === 'finish' ? 'finish-him' : name;
+      this.clips[name] = await decode(`audio/${file}.mp3`);
+    }
   }
 
   playClip(name, gain = 1) {
@@ -135,7 +135,9 @@ class AudioEngine {
       finish: 'audio/finish-him.mp3',
       wins: 'audio/wins.mp3',
       outstanding: 'audio/outstanding.mp3',
+      'round-final': 'audio/round-final.mp3',
     };
+    for (let i = 1; i <= 14; i++) urls[`round-${i}`] = `audio/round-${i}.mp3`;
     const buf = this.clips[name];
     if (this.ctx && this.sfxGain && buf) {
       const src = this.ctx.createBufferSource();
@@ -157,7 +159,7 @@ class AudioEngine {
 
   playAnnouncer(name, gain = 1.55) {
     const ms = this.playClip(name, gain);
-    if (ms > 0) this.duck(Math.min(ms + 80, 2200));
+    if (ms > 0) this.duck(Math.min(ms + 120, 4200));
     return ms;
   }
 
@@ -970,7 +972,7 @@ function resetFighter(f, side) {
   f.hitFlash = 0;
 }
 
-async function runBout({ left, right, pickNumber }) {
+async function runBout({ left, right, pickNumber, round, totalRounds }) {
   scene = { champion: left, opponent: right, vsAlpha: 0, introAlpha: 0, fightAlpha: 0, fightScale: 1, leftName: left.name, rightName: right.name, roundLabel: '' };
   resetFighter(left, 'left');
   resetFighter(right, 'right');
@@ -982,18 +984,21 @@ async function runBout({ left, right, pickNumber }) {
     tween(right, 'x', OFFSCREEN_RIGHT, OPPONENT_X, P(240)),
   ]);
 
-  scene.roundLabel = 'ROUND';
+  const isFinal = round >= totalRounds;
+  scene.roundLabel = isFinal ? 'FINAL ROUND' : `ROUND ${round}`;
   scene.leftName = left.name;
   scene.rightName = right.name;
   await tween(scene, 'introAlpha', 0, 1, 90);
-  await wait(420);
+  const roundClip = isFinal ? 'round-final' : `round-${Math.min(round, 14)}`;
+  const roundMs = audio.playAnnouncer(roundClip, 1.55);
+  await wait(Math.max(roundMs, 1100) + 180);
   await tween(scene, 'introAlpha', 1, 0, 80);
 
-  audio.playAnnouncer('fight', 1.5);
+  const fightMs = audio.playAnnouncer('fight', 1.5);
   scene.fightAlpha = 1;
   scene.fightScale = 2.5;
   await tween(scene, 'fightScale', 2.5, 1, 140);
-  await wait(220);
+  await wait(Math.max(fightMs - 140, 1200));
   await tween(scene, 'fightAlpha', 1, 0, 80);
 
   await exchangeBlows(left, right);
@@ -1002,7 +1007,7 @@ async function runBout({ left, right, pickNumber }) {
   const loser = winner === left ? right : left;
 
   const finishMs = audio.playAnnouncer('finish', 1.7);
-  await flashOverlay('FINISH HIM', loser.name.toUpperCase(), '#ffd200', Math.min(Math.max(finishMs * 0.7, 700), 1400), 52);
+  await flashOverlay('FINISH HIM', '', '#ffd200', Math.max(finishMs, 1600), 52);
 
   const home = winner.x;
   const dir = winner.flip ? -1 : 1;
@@ -1079,6 +1084,8 @@ async function runFullSimulation() {
   showIntroBoard = false;
 
   let nextPick = n;
+  let round = 0;
+  const totalRounds = n - 1;
   while (remaining.length > 1) {
     const i = Math.floor(Math.random() * remaining.length);
     let j = Math.floor(Math.random() * (remaining.length - 1));
@@ -1087,7 +1094,8 @@ async function runFullSimulation() {
     const b = remaining[j];
     const left = Math.random() < 0.5 ? a : b;
     const right = left === a ? b : a;
-    const { winner, loser } = await runBout({ left, right, pickNumber: nextPick });
+    round += 1;
+    const { winner, loser } = await runBout({ left, right, pickNumber: nextPick, round, totalRounds });
     const idx = remaining.indexOf(loser);
     if (idx >= 0) remaining.splice(idx, 1);
     appState.revealed.push({ pick: nextPick, name: loser.name });
