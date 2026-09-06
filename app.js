@@ -572,7 +572,7 @@ function showScreen(name) {
 
 const teamListEl = document.getElementById('team-list');
 const teamCountSlider = document.getElementById('team-count');
-const teamCountLabel = document.getElementById('team-count-label');
+const teamCountNum = document.getElementById('team-count-num');
 const startBtn = document.getElementById('start-btn');
 const setupError = document.getElementById('setup-error');
 const leagueNameInput = document.getElementById('league-name');
@@ -613,7 +613,7 @@ function setTeamCount(n, names) {
     row.querySelector('input').placeholder = `Team ${i + 1} name`;
   });
   teamCountSlider.value = String(n);
-  teamCountLabel.textContent = String(n);
+  teamCountNum.value = String(n);
 }
 
 function resetSetupForm(prefillNames = []) {
@@ -624,6 +624,15 @@ function resetSetupForm(prefillNames = []) {
 
 teamCountSlider.addEventListener('input', () => {
   setTeamCount(Number(teamCountSlider.value), currentTeamNames());
+});
+teamCountNum.addEventListener('change', () => {
+  setTeamCount(Number(teamCountNum.value), currentTeamNames());
+});
+teamCountNum.addEventListener('input', () => {
+  const n = Number(teamCountNum.value);
+  if (Number.isFinite(n) && n >= MIN_TEAMS && n <= MAX_TEAMS) {
+    setTeamCount(n, currentTeamNames());
+  }
 });
 
 function assignRandomFighters(names) {
@@ -1303,10 +1312,13 @@ function drawIntroRoster(ectx, W, H) {
   const cellW = (W - padX * 2) / cols;
   const cellH = (H - top - bottom) / rows;
 
+  const remainder = n % cols;
   list.forEach((f, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
-    const x = padX + col * cellW;
+    const colsThisRow = row === rows - 1 && remainder ? remainder : cols;
+    const offset = ((cols - colsThisRow) * cellW) / 2;
+    const x = padX + offset + col * cellW;
     const y = top + row * cellH;
     ectx.fillStyle = 'rgba(255,255,255,0.04)';
     ectx.fillRect(x + 6, y + 4, cellW - 12, cellH - 8);

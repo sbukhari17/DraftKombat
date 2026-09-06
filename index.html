@@ -25,7 +25,7 @@
   <section id="screen-setup" class="screen active" aria-labelledby="setup-heading">
     <div class="panel">
       <h2 id="setup-heading">Enter the league</h2>
-      <p class="panel-sub">Add every team. Two fighters face off at a time. The loser of each match fills the next draft slot — last pick first — until one remains as the 1st overall. Short intro, then FIGHT. Punches and kicks only.</p>
+      <p class="panel-sub">Add 4–16 teams — odd or even. Two fighters face off at a time; leftover teams sit that match as a bye. The loser fills the next draft slot — last pick first — until one remains as the 1st overall.</p>
 
       <div class="field">
         <label for="league-name">League name</label>
@@ -34,10 +34,11 @@
 
       <div class="field">
         <div class="teams-label-row">
-          <label for="team-count">Teams — <span id="team-count-label">4</span></label>
+          <label for="team-count-num">Teams</label>
+          <input type="number" id="team-count-num" min="4" max="16" step="1" value="4" aria-label="Number of teams">
         </div>
-        <input type="range" id="team-count" min="4" max="16" step="1" value="4" aria-label="Number of teams">
-        <div class="slider-ends"><span>4</span><span>16</span></div>
+        <input type="range" id="team-count" min="4" max="16" step="1" value="4" aria-label="Team count slider">
+        <div class="slider-ends"><span>4</span><span>odd or even</span><span>16</span></div>
         <ol id="team-list" class="team-list"></ol>
       </div>
 
