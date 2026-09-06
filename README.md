@@ -9,9 +9,7 @@ Live: `https://sbukhari17.github.io/DraftKombat/`
 
 ## What it does
 
-1. You enter a league name and 4–16 team names (odd or even — a 13-team
-   league is 13 names, not 14). Blank rows are ignored. If a fighter is
-   leftover in a round, they sit as a bye.
+1. You enter a league name and 4–16 team names. Blank rows are skipped.
 2. Two remaining fighters are drawn at random each round. Either side can
    win — the leftover “champion on the left” gauntlet is gone.
 3. An arcade fight plays on a `<canvas>`. Each bout is about 5 seconds,

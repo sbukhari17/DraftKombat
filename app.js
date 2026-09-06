@@ -572,7 +572,7 @@ function showScreen(name) {
 
 const teamListEl = document.getElementById('team-list');
 const teamCountSlider = document.getElementById('team-count');
-const teamCountNum = document.getElementById('team-count-num');
+const teamCountLabel = document.getElementById('team-count-label');
 const startBtn = document.getElementById('start-btn');
 const setupError = document.getElementById('setup-error');
 const leagueNameInput = document.getElementById('league-name');
@@ -613,7 +613,7 @@ function setTeamCount(n, names) {
     row.querySelector('input').placeholder = `Team ${i + 1} name`;
   });
   teamCountSlider.value = String(n);
-  teamCountNum.value = String(n);
+  teamCountLabel.textContent = String(n);
 }
 
 function resetSetupForm(prefillNames = []) {
@@ -624,15 +624,6 @@ function resetSetupForm(prefillNames = []) {
 
 teamCountSlider.addEventListener('input', () => {
   setTeamCount(Number(teamCountSlider.value), currentTeamNames());
-});
-teamCountNum.addEventListener('change', () => {
-  setTeamCount(Number(teamCountNum.value), currentTeamNames());
-});
-teamCountNum.addEventListener('input', () => {
-  const n = Number(teamCountNum.value);
-  if (Number.isFinite(n) && n >= MIN_TEAMS && n <= MAX_TEAMS) {
-    setTeamCount(n, currentTeamNames());
-  }
 });
 
 function assignRandomFighters(names) {
@@ -646,7 +637,7 @@ startBtn.addEventListener('click', () => {
   const names = nameInputs.map((inp) => inp.value.trim()).filter(Boolean);
 
   if (names.length < MIN_TEAMS || names.length > MAX_TEAMS) {
-    setupError.textContent = `Enter between ${MIN_TEAMS} and ${MAX_TEAMS} team names. Blank rows are ignored.`;
+    setupError.textContent = `Enter between ${MIN_TEAMS} and ${MAX_TEAMS} team names.`;
     setupError.hidden = false;
     return;
   }
