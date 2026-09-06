@@ -70,8 +70,8 @@ function tween(obj, prop, from, to, ms, easing = easeOutCubic, onUpdate = null) 
 }
 
 /* ============================== Audio Engine ============================ */
-/* Theme + announcer clips are original in-repo audio. Hit SFX and the
-   fallback music loop are still synthesized so the page works offline. */
+/* Theme + announcer clips are original in-repo audio. Punch/kick hits are
+   Mixkit royalty-free combat samples (with a synth fallback). */
 
 class AudioEngine {
   constructor() {
@@ -123,6 +123,10 @@ class AudioEngine {
       finish: await decode('audio/finish-him.mp3'),
       wins: await decode('audio/wins.mp3'),
       outstanding: await decode('audio/outstanding.mp3'),
+      punch: await decode('audio/punch.mp3'),
+      'punch-2': await decode('audio/punch-2.mp3'),
+      kick: await decode('audio/kick.mp3'),
+      'kick-2': await decode('audio/kick-2.mp3'),
     };
   }
 
@@ -135,6 +139,10 @@ class AudioEngine {
       finish: 'audio/finish-him.mp3',
       wins: 'audio/wins.mp3',
       outstanding: 'audio/outstanding.mp3',
+      punch: 'audio/punch.mp3',
+      'punch-2': 'audio/punch-2.mp3',
+      kick: 'audio/kick.mp3',
+      'kick-2': 'audio/kick-2.mp3',
     };
     const buf = this.clips[name];
     if (this.ctx && this.sfxGain && buf) {
@@ -303,6 +311,9 @@ class AudioEngine {
 
   playHit(kind = 'punch') {
     this.ensureStarted();
+    const pool = kind === 'kick' ? ['kick', 'kick-2'] : ['punch', 'punch-2'];
+    const name = pool[Math.floor(Math.random() * pool.length)];
+    if (this.playClip(name, kind === 'kick' ? 1.2 : 1.08) > 0) return;
     const t = this.ctx.currentTime;
     const src = this._noiseSource();
     const bp = this.ctx.createBiquadFilter();
