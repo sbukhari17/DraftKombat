@@ -912,18 +912,50 @@ async function flashOverlay(text, sub, color, holdMs, size = 46) {
   overlayText = null;
 }
 
-async function exchangeBlows(left, right) {
-  const hits = new Map([[left, 0], [right, 0]]);
+function splitHits(total, n) {
+  const w = Array.from({ length: n }, () => rand(0.75, 1.25));
+  const s = w.reduce((a, b) => a + b, 0);
+  return w.map((x) => total * (x / s));
+}
+
+function planBout(left, right) {
+  const close = Math.random() < 0.45;
+  let leftEnd;
+  let rightEnd;
+  if (close) {
+    leftEnd = rand(0.08, 0.16);
+    rightEnd = rand(0.08, 0.16);
+  } else if (Math.random() < 0.45) {
+    leftEnd = rand(0.08, 0.2);
+    rightEnd = rand(0.32, 0.58);
+    if (Math.random() < 0.5) [leftEnd, rightEnd] = [rightEnd, leftEnd];
+  } else {
+    leftEnd = rand(0.08, 0.18);
+    rightEnd = rand(0.48, 0.74);
+    if (Math.random() < 0.5) [leftEnd, rightEnd] = [rightEnd, leftEnd];
+  }
+  const leftTaken = splitHits(1 - leftEnd, 3);
+  const rightTaken = splitHits(1 - rightEnd, 3);
   let attacker = Math.random() < 0.5 ? left : right;
+  const seq = [];
+  const landed = new Map([[left, 0], [right, 0]]);
+  let li = 0;
+  let ri = 0;
   for (let i = 0; i < 6; i++) {
-    const leftHits = hits.get(left) || 0;
-    const rightHits = hits.get(right) || 0;
-    if (leftHits >= 3 && rightHits >= 3) break;
-    if ((hits.get(attacker) || 0) >= 3) attacker = attacker === left ? right : left;
-    if ((hits.get(attacker) || 0) >= 3) break;
     const defender = attacker === left ? right : left;
-    const n = hits.get(attacker) || 0;
-    const kind = n === 2 ? 'kick' : 'punch';
+    const hitsBy = landed.get(attacker) || 0;
+    const dmg = defender === left ? leftTaken[li++] : rightTaken[ri++];
+    seq.push({ attacker, defender, dmg, kind: hitsBy === 2 ? 'kick' : 'punch' });
+    landed.set(attacker, hitsBy + 1);
+    attacker = defender;
+  }
+  return { close, seq };
+}
+
+async function exchangeBlows(left, right) {
+  const { close, seq } = planBout(left, right);
+  for (const step of seq) {
+    const { attacker, defender, dmg, kind } = step;
     const dir = attacker.flip ? -1 : 1;
     const home = attacker.x;
     const lunge = kind === 'kick' ? 54 : 42;
@@ -939,7 +971,6 @@ async function exchangeBlows(left, right) {
     defender.hitFlash = 1;
     defender.pose = 'hurt';
     defender.poseT = 0;
-    const dmg = kind === 'kick' ? rand(0.32, 0.44) : rand(0.26, 0.38);
     defender.hp = Math.max(0.05, defender.hp - dmg);
     shakeScreen(kind === 'kick' ? 14 : 9);
     particles.push(...makeBurst(defender.x, defender.y - (kind === 'kick' ? 90 : 140), attacker.colorGlow, kind === 'kick' ? 14 : 10, 180));
@@ -957,10 +988,8 @@ async function exchangeBlows(left, right) {
     attacker.pose = 'idle';
     defender.pose = 'idle';
     await wait(P(30));
-    hits.set(attacker, n + 1);
-    if (defender.hp <= 0.08) break;
-    attacker = defender;
   }
+  return close;
 }
 
 function resetFighter(f, side) {
@@ -1006,11 +1035,23 @@ async function runBout({ left, right, pickNumber, round, totalRounds }) {
 
   await exchangeBlows(left, right);
 
+  const close = left.hp <= 0.22 && right.hp <= 0.22;
   const winner = left.hp === right.hp ? (Math.random() < 0.5 ? left : right) : (left.hp > right.hp ? left : right);
   const loser = winner === left ? right : left;
 
+  if (close) {
+    winner.pose = 'hurt';
+    loser.pose = 'hurt';
+    screenShake = 6;
+  }
   const finishMs = audio.playAnnouncer('finish', 1.7);
-  await flashOverlay('FINISH HIM', '', '#ffd200', Math.max(finishMs, 1600), 52);
+  const extra = close ? rand(720, 1100) : 0;
+  await flashOverlay('FINISH HIM', '', '#ffd200', Math.max(finishMs, 1600) + extra, 52);
+  if (close) {
+    winner.pose = 'idle';
+    loser.pose = 'idle';
+    await wait(P(160));
+  }
 
   const home = winner.x;
   const dir = winner.flip ? -1 : 1;
