@@ -643,10 +643,10 @@ function assignRandomFighters(names) {
 startBtn.addEventListener('click', () => {
   const league = leagueNameInput.value.trim() || 'Untitled League';
   const nameInputs = [...teamListEl.querySelectorAll('.team-row input')];
-  const names = nameInputs.map((inp, i) => inp.value.trim() || `Team ${i + 1}`);
+  const names = nameInputs.map((inp) => inp.value.trim()).filter(Boolean);
 
   if (names.length < MIN_TEAMS || names.length > MAX_TEAMS) {
-    setupError.textContent = `Enter between ${MIN_TEAMS} and ${MAX_TEAMS} teams.`;
+    setupError.textContent = `Enter between ${MIN_TEAMS} and ${MAX_TEAMS} team names. Blank rows are ignored.`;
     setupError.hidden = false;
     return;
   }
