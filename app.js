@@ -127,6 +127,10 @@ class AudioEngine {
       'punch-2': await decode('audio/punch-2.mp3'),
       kick: await decode('audio/kick.mp3'),
       'kick-2': await decode('audio/kick-2.mp3'),
+      'punch-f': await decode('audio/punch-f.mp3'),
+      'punch-f2': await decode('audio/punch-f2.mp3'),
+      'kick-f': await decode('audio/kick-f.mp3'),
+      'kick-f2': await decode('audio/kick-f2.mp3'),
     };
   }
 
@@ -143,6 +147,10 @@ class AudioEngine {
       'punch-2': 'audio/punch-2.mp3',
       kick: 'audio/kick.mp3',
       'kick-2': 'audio/kick-2.mp3',
+      'punch-f': 'audio/punch-f.mp3',
+      'punch-f2': 'audio/punch-f2.mp3',
+      'kick-f': 'audio/kick-f.mp3',
+      'kick-f2': 'audio/kick-f2.mp3',
     };
     const buf = this.clips[name];
     if (this.ctx && this.sfxGain && buf) {
@@ -309,9 +317,11 @@ class AudioEngine {
 
   /* ------------------------------ SFX ------------------------------ */
 
-  playHit(kind = 'punch') {
+  playHit(kind = 'punch', voice = 'male') {
     this.ensureStarted();
-    const pool = kind === 'kick' ? ['kick', 'kick-2'] : ['punch', 'punch-2'];
+    const pool = voice === 'female'
+      ? (kind === 'kick' ? ['kick-f', 'kick-f2'] : ['punch-f', 'punch-f2'])
+      : (kind === 'kick' ? ['kick', 'kick-2'] : ['punch', 'punch-2']);
     const name = pool[Math.floor(Math.random() * pool.length)];
     if (this.playClip(name, kind === 'kick' ? 1.2 : 1.08) > 0) return;
     const t = this.ctx.currentTime;
@@ -423,12 +433,22 @@ function stepDurFor(bpm) { return 60 / bpm / 4; }
 
 /* ============================== Fighter visuals ========================== */
 const ROSTER = [
-  { title: 'Ember Wraith' }, { title: 'Rime Specter' }, { title: 'Ironpalm' },
-  { title: 'Scalebite' }, { title: 'Nightcoil' }, { title: 'Crimson Oracle' },
-  { title: 'Silkfang' }, { title: 'Chromejaw' }, { title: 'Stormcall' },
-  { title: 'Razorace' }, { title: 'Bonebreaker' }, { title: 'Glacierine' },
-  { title: 'Ashwraith' }, { title: 'Scarletmask' }, { title: 'Goldfist' },
-  { title: 'Thornkite' },
+  { title: 'Ember Wraith', voice: 'female' },
+  { title: 'Rime Specter', voice: 'female' },
+  { title: 'Ironpalm', voice: 'male' },
+  { title: 'Scalebite', voice: 'male' },
+  { title: 'Nightcoil', voice: 'male' },
+  { title: 'Crimson Oracle', voice: 'female' },
+  { title: 'Silkfang', voice: 'female' },
+  { title: 'Chromejaw', voice: 'male' },
+  { title: 'Stormcall', voice: 'female' },
+  { title: 'Razorace', voice: 'male' },
+  { title: 'Bonebreaker', voice: 'male' },
+  { title: 'Glacierine', voice: 'female' },
+  { title: 'Ashwraith', voice: 'female' },
+  { title: 'Scarletmask', voice: 'female' },
+  { title: 'Goldfist', voice: 'male' },
+  { title: 'Thornkite', voice: 'female' },
 ];
 
 const assets = { fighters: [], arena: null, fx: {}, ready: false };
@@ -471,6 +491,7 @@ function buildFighter(name, index, total, modelId) {
     id: index,
     modelId: modelId % ROSTER.length,
     modelTitle: model.title,
+    voice: model.voice || 'male',
     colorPrimary: `hsl(${hue}, 78%, 58%)`,
     colorDark: `hsl(${hue}, 70%, 32%)`,
     colorGlow: `hsl(${hue}, 95%, 70%)`,
@@ -969,7 +990,7 @@ async function exchangeBlows(left, right) {
       tween(attacker, 'poseT', 0, 1, P(120)),
     ]);
 
-    audio.playHit(kind);
+    audio.playHit(kind, attacker.voice);
     defender.hitFlash = 1;
     defender.pose = 'hurt';
     defender.poseT = 0;
@@ -1063,7 +1084,7 @@ async function runBout({ left, right, pickNumber, round, totalRounds }) {
     tween(winner, 'x', home, home + dir * 54, P(80)),
     tween(winner, 'poseT', 0, 1, P(120)),
   ]);
-  audio.playHit('kick');
+  audio.playHit('kick', winner.voice);
   loser.hp = 0;
   loser.displayHp = 0;
   loser.pose = 'ko';
