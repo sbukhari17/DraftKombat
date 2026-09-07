@@ -451,25 +451,6 @@ const ROSTER = [
   { title: 'Thornkite', voice: 'female' },
 ];
 
-const EXECUTIONS = [
-  { pose: 'punch', fx: 'burn', color: '#ff6a00' },
-  { pose: 'punch', fx: 'freeze', color: '#7ad7ff' },
-  { pose: 'punch', fx: 'crush', color: '#e8a04a' },
-  { pose: 'punch', fx: 'melt', color: '#3dcf6a' },
-  { pose: 'kick', fx: 'dissolve', color: '#a8a8c0' },
-  { pose: 'punch', fx: 'dissolve', color: '#e31b23' },
-  { pose: 'kick', fx: 'melt', color: '#c46cff' },
-  { pose: 'punch', fx: 'crush', color: '#d0d6e0' },
-  { pose: 'kick', fx: 'shock', color: '#9ad4ff' },
-  { pose: 'kick', fx: 'uppercut', color: '#ffd200' },
-  { pose: 'punch', fx: 'slam', color: '#ff6b4a' },
-  { pose: 'punch', fx: 'freeze', color: '#b8e4ff' },
-  { pose: 'kick', fx: 'burn', color: '#b48cff' },
-  { pose: 'kick', fx: 'uppercut', color: '#ff3b3b' },
-  { pose: 'punch', fx: 'slam', color: '#ffd200' },
-  { pose: 'kick', fx: 'impale', color: '#5cff9a' },
-];
-
 const assets = { fighters: [], arena: null, fx: {}, ready: false };
 
 function loadImage(src) {
@@ -522,9 +503,6 @@ function buildFighter(name, index, total, modelId) {
     poseT: 0,
     alpha: 1,
     shakeX: 0,
-    tint: '#ffffff',
-    tintAmt: 0,
-    scaleY: 1,
   };
 }
 
@@ -540,8 +518,7 @@ function drawFighter(ctx, f) {
   else if (f.pose === 'tourneyWin' || f.pose === 'victory') img = sprites.tourney || sprites.idle;
 
   const now = performance.now();
-  const bob = (f.tintAmt > 0.4 || f.scaleY < 0.9) ? 0
-    : f.pose === 'idle' ? Math.sin(now / 260 + f.id) * 4
+  const bob = f.pose === 'idle' ? Math.sin(now / 260 + f.id) * 4
     : f.pose === 'roundWin' ? Math.sin(now / 180 + f.id) * 5
     : (f.pose === 'victory' || f.pose === 'tourneyWin') ? Math.sin(now / 120) * 8 : 0;
   const hurtLean = f.pose === 'hurt' ? (1 - f.poseT) * -12 : 0;
@@ -557,7 +534,7 @@ function drawFighter(ctx, f) {
   ctx.globalAlpha = f.alpha;
   ctx.translate(f.x + f.shakeX + hurtLean, f.y + bob + koDrop);
   const faceCamera = f.pose === 'roundWin' || f.pose === 'tourneyWin' || f.pose === 'victory';
-  ctx.scale(faceCamera ? 1 : (f.flip ? -1 : 1), f.scaleY || 1);
+  ctx.scale(faceCamera ? 1 : (f.flip ? -1 : 1), 1);
   ctx.rotate(f.rot + koRot);
 
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
@@ -570,13 +547,6 @@ function drawFighter(ctx, f) {
   }
   ctx.drawImage(img, -dw / 2 + punchBias, -dh + 12, dw, dh);
   ctx.filter = 'none';
-  if (f.tintAmt > 0.02) {
-    ctx.globalCompositeOperation = 'source-atop';
-    ctx.globalAlpha = f.alpha * f.tintAmt;
-    ctx.fillStyle = f.tint || '#ffffff';
-    ctx.fillRect(-dw / 2 + punchBias - 4, -dh - 4, dw + 8, dh + 20);
-    ctx.globalCompositeOperation = 'source-over';
-  }
   ctx.restore();
 }
 
@@ -1056,9 +1026,6 @@ function resetFighter(f, side) {
   f.scale = 1;
   f.rot = 0;
   f.hitFlash = 0;
-  f.tint = '#ffffff';
-  f.tintAmt = 0;
-  f.scaleY = 1;
 }
 
 async function runBout({ left, right, pickNumber, round, totalRounds }) {
@@ -1109,31 +1076,25 @@ async function runBout({ left, right, pickNumber, round, totalRounds }) {
     await wait(P(160));
   }
 
-  const useExec = Math.random() < 0.5;
-  if (useExec) {
-    await runExecution(winner, loser);
-  } else {
-    const home = winner.x;
-    const dir = winner.flip ? -1 : 1;
-    winner.pose = 'kick';
-    winner.poseT = 0;
-    await Promise.all([
-      tween(winner, 'x', home, home + dir * 54, P(80)),
-      tween(winner, 'poseT', 0, 1, P(120)),
-    ]);
-    audio.playHit('kick', winner.voice);
-    loser.hp = 0;
-    loser.displayHp = 0;
-    loser.pose = 'ko';
-    loser.poseT = 0;
-    screenShake = 20;
-    particles.push(...makeBurst(loser.x, loser.y - 40, '#e31b23', 28, 280));
-    await tween(loser, 'poseT', 0, 1, P(220));
-    await tween(loser, 'alpha', 1, 0.18, P(160));
-    await tween(winner, 'x', winner.x, home, P(70));
-  }
-
+  const home = winner.x;
+  const dir = winner.flip ? -1 : 1;
+  winner.pose = 'kick';
+  winner.poseT = 0;
+  await Promise.all([
+    tween(winner, 'x', home, home + dir * 54, P(80)),
+    tween(winner, 'poseT', 0, 1, P(120)),
+  ]);
+  audio.playHit('kick', winner.voice);
+  loser.hp = 0;
+  loser.displayHp = 0;
+  loser.pose = 'ko';
+  loser.poseT = 0;
+  screenShake = 20;
   const fatMs = audio.playAnnouncer('fatality', 1.7);
+  particles.push(...makeBurst(loser.x, loser.y - 40, '#e31b23', 28, 280));
+  await tween(loser, 'poseT', 0, 1, P(220));
+  await tween(loser, 'alpha', 1, 0.18, P(160));
+  await tween(winner, 'x', winner.x, home, P(70));
   winner.pose = 'roundWin';
   winner.flip = false;
   winner.scale = 1.04;
@@ -1142,111 +1103,6 @@ async function runBout({ left, right, pickNumber, round, totalRounds }) {
 
   await flashOverlay(`${winner.name.toUpperCase()} WINS!`, `${loser.name.toUpperCase()} — PICK #${pickNumber}`, '#ffd200', Math.min(Math.max(fatMs * 0.65, 700), 1400), winner.name.length > 12 ? 36 : 48);
   return { winner, loser };
-}
-
-async function runExecution(winner, loser) {
-  const exec = EXECUTIONS[winner.modelId % EXECUTIONS.length];
-  const dir = winner.flip ? -1 : 1;
-  const home = winner.x;
-  winner.pose = exec.pose;
-  winner.poseT = 0;
-  audio.playWhoosh();
-  await Promise.all([
-    tween(winner, 'x', home, home + dir * (exec.pose === 'kick' ? 62 : 48), P(90)),
-    tween(winner, 'poseT', 0, 1, P(130)),
-  ]);
-  audio.playHit(exec.pose, winner.voice);
-  loser.pose = 'hurt';
-  loser.poseT = 1;
-  loser.hp = 0;
-  loser.displayHp = 0;
-  loser.tint = exec.color;
-  screenShake = 18;
-  particles.push(...makeBurst(loser.x, loser.y - 90, exec.color, 22, 260));
-
-  switch (exec.fx) {
-    case 'burn':
-      await Promise.all([
-        tween(loser, 'tintAmt', 0, 0.85, P(180)),
-        tween(loser, 'alpha', 1, 0, P(520)),
-        tween(loser, 'scale', loser.scale, 0.7, P(520)),
-      ]);
-      break;
-    case 'freeze':
-      await tween(loser, 'tintAmt', 0, 0.9, P(160));
-      await wait(P(280));
-      particles.push(...makeBurst(loser.x, loser.y - 80, exec.color, 36, 340));
-      await Promise.all([
-        tween(loser, 'alpha', 1, 0, P(220)),
-        tween(loser, 'scale', loser.scale, 1.15, P(220)),
-      ]);
-      break;
-    case 'melt':
-      await Promise.all([
-        tween(loser, 'tintAmt', 0, 0.75, P(160)),
-        tween(loser, 'scaleY', 1, 0.14, P(420)),
-        tween(loser, 'y', loser.y, loser.y + 36, P(420)),
-        tween(loser, 'alpha', 1, 0, P(480)),
-      ]);
-      break;
-    case 'shock':
-      await tween(loser, 'tintAmt', 0, 0.7, P(80));
-      for (let i = 0; i < 3; i++) {
-        loser.hitFlash = 1;
-        screenShake = 12;
-        await wait(P(70));
-      }
-      loser.pose = 'ko';
-      await Promise.all([
-        tween(loser, 'poseT', 0, 1, P(200)),
-        tween(loser, 'alpha', 1, 0.12, P(240)),
-      ]);
-      break;
-    case 'launch':
-    case 'uppercut':
-      await Promise.all([
-        tween(loser, 'y', loser.y, -80, P(420)),
-        tween(loser, 'rot', 0, dir * 2.4, P(420)),
-        tween(loser, 'alpha', 1, 0, P(400)),
-      ]);
-      break;
-    case 'crush':
-      await Promise.all([
-        tween(loser, 'scaleY', 1, 0.16, P(220)),
-        tween(loser, 'scale', loser.scale, 1.35, P(220)),
-        tween(loser, 'y', loser.y, loser.y + 28, P(220)),
-      ]);
-      await tween(loser, 'alpha', 1, 0, P(200));
-      break;
-    case 'dissolve':
-      await Promise.all([
-        tween(loser, 'tintAmt', 0, 0.8, P(180)),
-        tween(loser, 'alpha', 1, 0, P(480)),
-      ]);
-      break;
-    case 'slam':
-      await tween(loser, 'y', loser.y, loser.y - 70, P(90));
-      await Promise.all([
-        tween(loser, 'y', loser.y, GROUND_Y + 20, P(140)),
-        tween(loser, 'scaleY', 1, 0.2, P(140)),
-        tween(loser, 'scale', loser.scale, 1.3, P(140)),
-      ]);
-      screenShake = 22;
-      await tween(loser, 'alpha', 1, 0, P(200));
-      break;
-    case 'impale':
-      await Promise.all([
-        tween(loser, 'y', loser.y, loser.y - 48, P(160)),
-        tween(loser, 'tintAmt', 0, 0.7, P(160)),
-      ]);
-      particles.push(...makeBurst(loser.x, loser.y - 100, exec.color, 20, 220));
-      await tween(loser, 'alpha', 1, 0, P(280));
-      break;
-  }
-
-  await tween(winner, 'x', winner.x, home, P(80));
-  winner.pose = 'idle';
-  loser.alpha = 0;
 }
 
 async function walkOff(winner) {
