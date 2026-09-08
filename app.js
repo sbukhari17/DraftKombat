@@ -433,22 +433,22 @@ function stepDurFor(bpm) { return 60 / bpm / 4; }
 
 /* ============================== Fighter visuals ========================== */
 const ROSTER = [
-  { title: 'Ember Wraith', voice: 'female' },
-  { title: 'Rime Specter', voice: 'female' },
+  { title: 'Ember Wraith', voice: 'male' },
+  { title: 'Rime Specter', voice: 'male' },
   { title: 'Ironpalm', voice: 'male' },
   { title: 'Scalebite', voice: 'male' },
   { title: 'Nightcoil', voice: 'male' },
-  { title: 'Crimson Oracle', voice: 'female' },
+  { title: 'Crimson Oracle', voice: 'male' },
   { title: 'Silkfang', voice: 'female' },
   { title: 'Chromejaw', voice: 'male' },
-  { title: 'Stormcall', voice: 'female' },
+  { title: 'Stormcall', voice: 'male' },
   { title: 'Razorace', voice: 'male' },
   { title: 'Bonebreaker', voice: 'male' },
   { title: 'Glacierine', voice: 'female' },
-  { title: 'Ashwraith', voice: 'female' },
-  { title: 'Scarletmask', voice: 'female' },
+  { title: 'Ashwraith', voice: 'male' },
+  { title: 'Scarletmask', voice: 'male' },
   { title: 'Goldfist', voice: 'male' },
-  { title: 'Thornkite', voice: 'female' },
+  { title: 'Thornkite', voice: 'male' },
 ];
 
 const assets = { fighters: [], arena: null, fx: {}, ready: false };
