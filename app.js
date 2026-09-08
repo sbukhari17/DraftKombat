@@ -131,6 +131,20 @@ class AudioEngine {
       'punch-f2': await decode('audio/punch-f2.mp3'),
       'kick-f': await decode('audio/kick-f.mp3'),
       'kick-f2': await decode('audio/kick-f2.mp3'),
+      explode: await decode('audio/explode.mp3'),
+      bomb: await decode('audio/bomb.mp3'),
+      gun: await decode('audio/gun.mp3'),
+      lightning: await decode('audio/lightning.mp3'),
+      slash: await decode('audio/slash.mp3'),
+      saber: await decode('audio/saber.mp3'),
+      fireball: await decode('audio/fireball.mp3'),
+      firewoosh: await decode('audio/firewoosh.mp3'),
+      'scream-m': await decode('audio/scream-m.mp3'),
+      'scream-f': await decode('audio/scream-f.mp3'),
+      shatter: await decode('audio/shatter.mp3'),
+      'whoosh-air': await decode('audio/whoosh-air.mp3'),
+      impact: await decode('audio/impact.mp3'),
+      energy: await decode('audio/energy.mp3'),
     };
   }
 
@@ -151,6 +165,20 @@ class AudioEngine {
       'punch-f2': 'audio/punch-f2.mp3',
       'kick-f': 'audio/kick-f.mp3',
       'kick-f2': 'audio/kick-f2.mp3',
+      explode: 'audio/explode.mp3',
+      bomb: 'audio/bomb.mp3',
+      gun: 'audio/gun.mp3',
+      lightning: 'audio/lightning.mp3',
+      slash: 'audio/slash.mp3',
+      saber: 'audio/saber.mp3',
+      fireball: 'audio/fireball.mp3',
+      firewoosh: 'audio/firewoosh.mp3',
+      'scream-m': 'audio/scream-m.mp3',
+      'scream-f': 'audio/scream-f.mp3',
+      shatter: 'audio/shatter.mp3',
+      'whoosh-air': 'audio/whoosh-air.mp3',
+      impact: 'audio/impact.mp3',
+      energy: 'audio/energy.mp3',
     };
     const buf = this.clips[name];
     if (this.ctx && this.sfxGain && buf) {
@@ -472,6 +500,7 @@ async function loadAssets() {
       kick: await loadImage(`fighters/${n}-kick.png`),
       win: await loadImage(`fighters/${n}-win.png`),
       tourney: await loadImage(`fighters/${n}-tourney.png`),
+      exec: await loadImage(`fighters/${n}-exec.png`),
     };
   }));
   assets.arena = await loadImage('arena.jpg');
@@ -503,22 +532,31 @@ function buildFighter(name, index, total, modelId) {
     poseT: 0,
     alpha: 1,
     shakeX: 0,
+    tint: '#ffffff',
+    tintAmt: 0,
+    scaleY: 1,
+    hidden: false,
+    slices: 0,
+    sliceSpread: 0,
   };
 }
 
 const DRAW_H = 318;
 
 function drawFighter(ctx, f) {
+  if (f.hidden || f.alpha <= 0.02) return;
   const sprites = assets.fighters[f.modelId];
   if (!sprites) return;
   let img = sprites.idle;
   if (f.pose === 'punch') img = sprites.punch;
   else if (f.pose === 'kick') img = sprites.kick;
+  else if (f.pose === 'exec') img = sprites.exec || sprites.punch;
   else if (f.pose === 'roundWin') img = sprites.win || sprites.idle;
   else if (f.pose === 'tourneyWin' || f.pose === 'victory') img = sprites.tourney || sprites.idle;
 
   const now = performance.now();
-  const bob = f.pose === 'idle' ? Math.sin(now / 260 + f.id) * 4
+  const bob = (f.tintAmt > 0.4 || f.scaleY < 0.9) ? 0
+    : f.pose === 'idle' ? Math.sin(now / 260 + f.id) * 4
     : f.pose === 'roundWin' ? Math.sin(now / 180 + f.id) * 5
     : (f.pose === 'victory' || f.pose === 'tourneyWin') ? Math.sin(now / 120) * 8 : 0;
   const hurtLean = f.pose === 'hurt' ? (1 - f.poseT) * -12 : 0;
@@ -534,7 +572,7 @@ function drawFighter(ctx, f) {
   ctx.globalAlpha = f.alpha;
   ctx.translate(f.x + f.shakeX + hurtLean, f.y + bob + koDrop);
   const faceCamera = f.pose === 'roundWin' || f.pose === 'tourneyWin' || f.pose === 'victory';
-  ctx.scale(faceCamera ? 1 : (f.flip ? -1 : 1), 1);
+  ctx.scale(faceCamera ? 1 : (f.flip ? -1 : 1), f.scaleY || 1);
   ctx.rotate(f.rot + koRot);
 
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
@@ -545,8 +583,28 @@ function drawFighter(ctx, f) {
   if (f.hitFlash > 0.05) {
     ctx.filter = `brightness(${1.4 + f.hitFlash * 1.6}) saturate(${1 - f.hitFlash * 0.7})`;
   }
-  ctx.drawImage(img, -dw / 2 + punchBias, -dh + 12, dw, dh);
+  const dx = -dw / 2 + punchBias;
+  const dy = -dh + 12;
+  if (f.slices > 1) {
+    const n = f.slices;
+    for (let i = 0; i < n; i++) {
+      const sy = (img.height / n) * i;
+      const sh = img.height / n;
+      const ox = (i % 2 === 0 ? -1 : 1) * f.sliceSpread;
+      const oy = (i - (n - 1) / 2) * f.sliceSpread * 0.35;
+      ctx.drawImage(img, 0, sy, img.width, sh, dx + ox, dy + (dh / n) * i + oy, dw, dh / n);
+    }
+  } else {
+    ctx.drawImage(img, dx, dy, dw, dh);
+  }
   ctx.filter = 'none';
+  if (f.tintAmt > 0.02) {
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.globalAlpha = f.alpha * f.tintAmt;
+    ctx.fillStyle = f.tint || '#ffffff';
+    ctx.fillRect(dx - 4, dy - 4, dw + 8, dh + 20);
+    ctx.globalCompositeOperation = 'source-over';
+  }
   ctx.restore();
 }
 
@@ -720,6 +778,8 @@ let scene = null;
 let particles = [];
 let overlayText = null; // {text, sub, size, color, alpha, y}
 let screenShake = 0;
+let screenFlash = 0;
+let fxBits = [];
 let renderLoopActive = false;
 let showResultsBoard = false;
 let showIntroBoard = false;
@@ -728,6 +788,37 @@ function resetSceneVisuals() {
   particles = [];
   overlayText = null;
   screenShake = 0;
+  screenFlash = 0;
+  fxBits = [];
+}
+
+function fatalityHost() {
+  return {
+    P,
+    audio,
+    shake: (n) => { screenShake = n; },
+    flash: (n) => { screenFlash = n; },
+    burst: (x, y, color, n, speed) => { particles.push(...makeBurst(x, y, color, n, speed)); },
+    spawn: (bit) => {
+      fxBits.push({
+        kind: bit.kind,
+        x: bit.x || 0,
+        y: bit.y || 0,
+        vx: bit.vx || 0,
+        vy: bit.vy || 0,
+        rot: bit.rot || 0,
+        vr: bit.vr || 0,
+        scale: bit.scale == null ? 1 : bit.scale,
+        alpha: bit.alpha == null ? 1 : bit.alpha,
+        life: bit.life == null ? 0.8 : bit.life,
+        age: bit.age || 0,
+        color: bit.color || '#fff',
+      });
+    },
+    ground: GROUND_Y,
+    cw: CW,
+    ch: CH,
+  };
 }
 
 function drawBackground(t) {
@@ -851,6 +942,13 @@ function renderFrame(now) {
       else f.chipHp = f.displayHp;
       drawFighter(ctx, f);
     });
+    if (typeof tickFx === 'function') fxBits = tickFx(fxBits, dt);
+    if (typeof drawFatalityFx === 'function') drawFatalityFx(ctx, fxBits);
+    if (screenFlash > 0.01) {
+      ctx.fillStyle = `rgba(255,255,255,${screenFlash * 0.55})`;
+      ctx.fillRect(0, 0, CW, CH);
+      screenFlash *= 0.82;
+    } else screenFlash = 0;
     if (scene.introAlpha > 0.01) {
       ctx.save();
       ctx.globalAlpha = scene.introAlpha * 0.72;
@@ -1026,6 +1124,12 @@ function resetFighter(f, side) {
   f.scale = 1;
   f.rot = 0;
   f.hitFlash = 0;
+  f.tint = '#ffffff';
+  f.tintAmt = 0;
+  f.scaleY = 1;
+  f.hidden = false;
+  f.slices = 0;
+  f.sliceSpread = 0;
 }
 
 async function runBout({ left, right, pickNumber, round, totalRounds }) {
@@ -1076,25 +1180,31 @@ async function runBout({ left, right, pickNumber, round, totalRounds }) {
     await wait(P(160));
   }
 
-  const home = winner.x;
-  const dir = winner.flip ? -1 : 1;
-  winner.pose = 'kick';
-  winner.poseT = 0;
-  await Promise.all([
-    tween(winner, 'x', home, home + dir * 54, P(80)),
-    tween(winner, 'poseT', 0, 1, P(120)),
-  ]);
-  audio.playHit('kick', winner.voice);
-  loser.hp = 0;
-  loser.displayHp = 0;
-  loser.pose = 'ko';
-  loser.poseT = 0;
-  screenShake = 20;
+  const useExec = Math.random() < 0.5;
+  if (useExec && typeof runFatality === 'function') {
+    await runFatality(fatalityHost(), winner, loser);
+  } else {
+    const home = winner.x;
+    const dir = winner.flip ? -1 : 1;
+    winner.pose = 'kick';
+    winner.poseT = 0;
+    await Promise.all([
+      tween(winner, 'x', home, home + dir * 54, P(80)),
+      tween(winner, 'poseT', 0, 1, P(120)),
+    ]);
+    audio.playHit('kick', winner.voice);
+    loser.hp = 0;
+    loser.displayHp = 0;
+    loser.pose = 'ko';
+    loser.poseT = 0;
+    screenShake = 20;
+    particles.push(...makeBurst(loser.x, loser.y - 40, '#e31b23', 28, 280));
+    await tween(loser, 'poseT', 0, 1, P(220));
+    await tween(loser, 'alpha', 1, 0.18, P(160));
+    await tween(winner, 'x', winner.x, home, P(70));
+  }
+
   const fatMs = audio.playAnnouncer('fatality', 1.7);
-  particles.push(...makeBurst(loser.x, loser.y - 40, '#e31b23', 28, 280));
-  await tween(loser, 'poseT', 0, 1, P(220));
-  await tween(loser, 'alpha', 1, 0.18, P(160));
-  await tween(winner, 'x', winner.x, home, P(70));
   winner.pose = 'roundWin';
   winner.flip = false;
   winner.scale = 1.04;
